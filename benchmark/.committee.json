@@ -1,0 +1,72 @@
+{
+    "authorities": {
+        "P5lhQELaTBlADI5ra1TcPWp9GY38dVBefA+/0tkP1Mk=": {
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3000"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3001",
+                "worker_to_primary": "127.0.0.1:3002"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3003",
+                    "transactions": "127.0.0.1:3004",
+                    "worker_to_worker": "127.0.0.1:3005"
+                }
+            }
+        },
+        "xIgkzLw52caw9ej93UL/70HoYVOTUAhMKvs5r4EdlCQ=": {
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3006"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3007",
+                "worker_to_primary": "127.0.0.1:3008"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3009",
+                    "transactions": "127.0.0.1:3010",
+                    "worker_to_worker": "127.0.0.1:3011"
+                }
+            }
+        },
+        "QEO3JRJ8TjdIw3RSI6xKRKpof+NFjgxDwbWhtrDs4fw=": {
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3012"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3013",
+                "worker_to_primary": "127.0.0.1:3014"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3015",
+                    "transactions": "127.0.0.1:3016",
+                    "worker_to_worker": "127.0.0.1:3017"
+                }
+            }
+        },
+        "gKnwQhFFz/FgrjxfmeDXSiuLWpvoeInKWvhFSq6EOnQ=": {
+            "stake": 1,
+            "consensus": {
+                "consensus_to_consensus": "127.0.0.1:3018"
+            },
+            "primary": {
+                "primary_to_primary": "127.0.0.1:3019",
+                "worker_to_primary": "127.0.0.1:3020"
+            },
+            "workers": {
+                "0": {
+                    "primary_to_worker": "127.0.0.1:3021",
+                    "transactions": "127.0.0.1:3022",
+                    "worker_to_worker": "127.0.0.1:3023"
+                }
+            }
+        }
+    }
+}
