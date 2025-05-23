@@ -1,2 +1,5 @@
 target
 benchmark/benchmark/key.json
+benchmark/.parameters.json
+.DS_Store
+
