@@ -97,6 +97,21 @@ def install(ctx):
     except BenchError as e:
         Print.error(e)
 
+@task
+def set_filter(ctx):
+    '''Set TC filter'''
+    try:
+        Bench(ctx).set_tc_filter()
+    except BenchError as e:
+        Print.error(e)
+
+@task
+def reset_filter(ctx):
+    '''Reset TC filter'''
+    try:
+        Bench(ctx).reset_tc_filter()
+    except BenchError as e:
+        Print.error(e)
 
 @task
 def remote(ctx, debug=False, consensus_only=True, aggregate=False):
@@ -116,7 +131,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'max_block_size': 1_000_000,
         'max_packet_size': 200_000,
         'consensus_only': consensus_only,
-        'timeout_delay': 20,  # ms
+        'timeout_delay': 100,  # ms
         'header_size': 1_000,  # bytes
         'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds

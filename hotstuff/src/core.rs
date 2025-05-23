@@ -227,8 +227,8 @@ impl Core {
     }
 
     async fn handle_proposal(&mut self, p: Proposal) -> ConsensusResult<()> {
-        let r =  p.block.round;
-        *self.processing_blocks.entry(r).or_insert(0) += 1;
+        // let r =  p.block.round;
+        // *self.processing_blocks.entry(r).or_insert(0) += 1;
         // let counter = self.processing_blocks.get(&r).unwrap_or(&0);
         // if (counter == &5){
             info!("Received {:?}", p);

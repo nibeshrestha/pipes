@@ -70,7 +70,7 @@ class Bench:
             'sudo apt-get install -y clang',
 
             'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
-            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 5mbit',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit',
             'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms',
 
             # Clone the repo.
@@ -86,6 +86,36 @@ class Bench:
         except (GroupException, ExecutionError) as e:
             e = FabricError(e) if isinstance(e, GroupException) else e
             raise BenchError('Failed to install repo on testbed', e)
+
+    def set_tc_filter(self):
+        Print.info('Setting TC filter...')
+        cmd = [
+            'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit',
+            'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms',
+        ]
+        hosts = self.manager.hosts(flat=True)
+        try:
+            g = Group(*hosts, user='ubuntu', connect_kwargs=self.connect)
+            g.run(' && '.join(cmd), hide=True)
+            Print.heading(f'TC filter set on {len(hosts)} nodes')
+        except (GroupException, ExecutionError) as e:
+            e = FabricError(e) if isinstance(e, GroupException) else e
+            raise BenchError('Failed to set filter on testbed', e)
+    
+    def reset_tc_filter(self):
+        Print.info('Resetting TC filter...')
+        cmd = [
+            'sudo tc qdisc del dev ens4 root',
+        ]
+        hosts = self.manager.hosts(flat=True)
+        try:
+            g = Group(*hosts, user='ubuntu', connect_kwargs=self.connect)
+            g.run(' && '.join(cmd), hide=True)
+            Print.heading(f'TC filter reset on {len(hosts)} nodes')
+        except (GroupException, ExecutionError) as e:
+            e = FabricError(e) if isinstance(e, GroupException) else e
+            raise BenchError('Failed to reset filter on testbed', e)
 
     def kill(self, hosts=[], delete_logs=False):
         assert isinstance(hosts, list)

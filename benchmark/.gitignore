@@ -5,6 +5,7 @@ node
 benchmark_client
 results*
 plots
+target
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
