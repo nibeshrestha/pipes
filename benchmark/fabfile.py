@@ -19,6 +19,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'rate': 150_000,
         'tx_size': 512,
         'duration': 20,
+        'max_block_size': 1_000_000,
     }
     node_params = {
         'max_block_size': 1_000_000,
@@ -98,22 +99,24 @@ def install(ctx):
 
 
 @task
-def remote(ctx, debug=False, consensus_only=False, update=True, aggregate=False):
+def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on AWS '''
     bench_params = {
         'faults': 0,
-        'nodes': [10],
+        'nodes': [5],
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 300,
-        'runs': 1
+        'duration': 60,
+        'runs': 1,
+        'max_block_size': 1_000_000
     }
     node_params = {
-        'max_block_size': 10_000,
+        'max_block_size': 1_000_000,
+        'max_packet_size': 200_000,
         'consensus_only': consensus_only,
-        'timeout_delay': 5_000,  # ms
+        'timeout_delay': 20,  # ms
         'header_size': 1_000,  # bytes
         'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds
@@ -127,7 +130,7 @@ def remote(ctx, debug=False, consensus_only=False, update=True, aggregate=False)
         # 'transmission_stats_print_interval': 5,
     }
     try:
-        Bench(ctx).run(bench_params, node_params, debug, consensus_only, update)
+        Bench(ctx).run(bench_params, node_params, debug, consensus_only)
     except BenchError as e:
         Print.error(e)
 

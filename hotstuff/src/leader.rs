@@ -1,13 +1,14 @@
 use crate::consensus::Round;
 use config::Committee;
 use crypto::PublicKey;
-use std::collections::{HashMap, VecDeque};
+use std::{collections::{HashMap, VecDeque}, net::SocketAddr};
 
 pub type LeaderElector = DeterministicFairSuccessionLeaderElector;
 
 pub struct DeterministicFairSuccessionLeaderElector {
-    nodes_ids: Vec<PublicKey>,
-    schedule: Vec<usize>,
+    // nodes_ids: Vec<PublicKey>,
+    // schedule: Vec<usize>,
+    addresses: Vec<(SocketAddr, PublicKey)>
 }
 
 /// Leader elector that ensures:
@@ -18,13 +19,15 @@ impl DeterministicFairSuccessionLeaderElector {
     pub fn new(committee: Committee) -> Self {
         let n = committee.size();
         // Currently only support a static validator set, so can set this during construction.
-        let mut nodes_ids: Vec<PublicKey> = committee.authorities.keys().cloned().collect();
-        let schedule = Self::generate_schedule(n);
-        nodes_ids.sort();
-
+        // let mut nodes_ids: Vec<PublicKey> = committee.authorities.keys().cloned().collect();
+        // let schedule = Self::generate_schedule(n);
+        let mut addresses: Vec<(SocketAddr, PublicKey)> = committee.authorities.into_iter().map(|(p, x)| {(x.consensus.consensus_to_consensus,p)}).collect();
+        
+        addresses.sort_by_key(|x| x.0);
+    
         Self {
-            nodes_ids,
-            schedule,
+            addresses,
+            // schedule,
         }
     }
 
@@ -84,9 +87,9 @@ impl DeterministicFairSuccessionLeaderElector {
     }
 
     pub fn get_leader(&self, round: Round) -> PublicKey {
-        let index = round as usize % self.schedule.len();
-        let leader = self.schedule[index];
-        self.nodes_ids[leader]
+        let index = round as usize % self.addresses.len();
+        // let leader = self.nodes_ids[index as usize];
+        self.addresses[index].1
     }
 }
 

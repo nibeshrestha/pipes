@@ -25,9 +25,6 @@ class Committee:
         "authorities: {
             "name": {
                 "stake": 1,
-                "consensus: {
-                    "consensus_to_consensus": x.x.x.x:x,
-                },
                 "primary: {
                     "primary_to_primary": x.x.x.x:x,
                     "worker_to_primary": x.x.x.x:x,
@@ -45,10 +42,7 @@ class Committee:
         }
     '''
 
-    def __init__(self, json):
-        self.json = json
-
-    def address_list_to_json(addresses, base_port):
+    def __init__(self, addresses, base_port):
         ''' The `addresses` field looks as follows:
             { 
                 "name": ["host", "host", ...],
@@ -67,14 +61,14 @@ class Committee:
         assert isinstance(base_port, int) and base_port > 1024
 
         port = base_port
-        json = {'authorities': OrderedDict()}
+        self.json = {'authorities': OrderedDict()}
         for name, hosts in addresses.items():
+            # port = base_port
             host = hosts.pop(0)
             consensus_addr = {
                 'consensus_to_consensus': f'{host}:{port}',
             }
             port += 1
-
             primary_addr = {
                 'primary_to_primary': f'{host}:{port}',
                 'worker_to_primary': f'{host}:{port + 1}'
@@ -90,23 +84,12 @@ class Committee:
                 }
                 port += 3
 
-            json['authorities'][name] = {
+            self.json['authorities'][name] = {
                 'stake': 1,
                 'consensus': consensus_addr,
                 'primary': primary_addr,
                 'workers': workers_addr
             }
-        return json
-
-    @classmethod
-    def from_address_list(cls, addresses, base_port):
-        return cls(Committee.address_list_to_json(addresses, base_port))
-
-    @classmethod
-    def from_file(cls, filename):
-        with open(filename, 'r') as f:
-            json = load(f)
-        return cls(json)
 
     def primary_addresses(self, faults=0):
         ''' Returns an ordered list of primaries' addresses. '''
@@ -138,9 +121,6 @@ class Committee:
 
         ips = set()
         for name in names:
-            addresses = self.json['authorities'][name]['consensus']
-            ips.add(self.ip(addresses['consensus_to_consensus']))
-
             addresses = self.json['authorities'][name]['primary']
             ips.add(self.ip(addresses['primary_to_primary']))
             ips.add(self.ip(addresses['worker_to_primary']))
@@ -169,7 +149,7 @@ class Committee:
     def print(self, filename):
         assert isinstance(filename, str)
         with open(filename, 'w') as f:
-            dump(self.json, f, indent=4, sort_keys=False)
+            dump(self.json, f, indent=4, sort_keys=True)
 
     @staticmethod
     def ip(address):
@@ -184,8 +164,7 @@ class LocalCommittee(Committee):
         assert isinstance(port, int)
         assert isinstance(workers, int) and workers > 0
         addresses = OrderedDict((x, ['127.0.0.1']*(1+workers)) for x in names)
-        json = Committee.address_list_to_json(addresses, port)
-        super().__init__(json)
+        super().__init__(addresses, port)
 
 
 class NodeParameters:
@@ -243,6 +222,8 @@ class BenchParameters:
             self.duration = int(json['duration'])
 
             self.runs = int(json['runs']) if 'runs' in json else 1
+        
+            self.max_block_size = int(json['max_block_size'])
         except KeyError as e:
             raise ConfigError(f'Malformed bench parameters: missing key {e}')
 

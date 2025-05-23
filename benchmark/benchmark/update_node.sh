@@ -18,11 +18,6 @@ BRANCH_NAME="$3"
 
 FUNC="update"
 
-# sudo tc qdisc del dev ens4 root
-sudo tc qdisc add dev ens4 root handle 1: htb default 10
-sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 5mbit
-sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms
-
 eval $(ssh-agent)
 ssh-add /home/ubuntu/.ssh/"$DEPLOY_KEY_NAME"
 cd /home/ubuntu/"$REPO_NAME" 

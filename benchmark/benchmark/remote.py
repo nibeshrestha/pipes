@@ -69,8 +69,14 @@ class Bench:
             # This is missing from the Rocksdb installer (needed for Rocksdb).
             'sudo apt-get install -y clang',
 
+            'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 5mbit',
+            'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms',
+
             # Clone the repo.
             f'(git clone {self.settings.repo_url} || (cd {self.settings.repo_name} ; git pull))'
+
+            
         ]
         hosts = self.manager.hosts(flat=True)
         try:
@@ -209,7 +215,7 @@ class Bench:
 
         return committee
 
-    def _run_single(self, rate, burst, committee, bench_parameters, debug=False, consensus_only=False):
+    def _run_single(self, rate, committee, bench_parameters, debug=False, consensus_only=False):
         faults = bench_parameters.faults
 
         # Kill any potentially unfinished run and delete logs.
@@ -229,7 +235,6 @@ class Bench:
                     cmd = CommandMaker.run_client(
                         address,
                         bench_parameters.tx_size,
-                        burst,
                         rate_share,
                         [x for y in workers_addresses for _, x in y]
                     )
@@ -272,7 +277,7 @@ class Bench:
             sleep(ceil(duration / 20))
         self.kill(hosts=hosts, delete_logs=False)
 
-    def _logs(self, committee, burst, faults, consensus_only):
+    def _logs(self, committee, faults, consensus_only):
         # Delete local logs (if any).
         cmd = CommandMaker.clean_logs()
         subprocess.run([cmd], shell=True, stderr=subprocess.DEVNULL)
@@ -306,9 +311,9 @@ class Bench:
 
         # Parse logs and return the parser.
         Print.info('Parsing logs and computing performance...')
-        return LogParser.process(PathMaker.logs_path(), burst, faults=faults, consensus_only=consensus_only)
+        return LogParser.process(PathMaker.logs_path(), faults=faults, consensus_only=consensus_only)
 
-    def run(self, bench_parameters_dict, node_parameters_dict, debug=False, consensus_only=True):
+    def run(self, bench_parameters_dict, node_parameters_dict, debug=False, consensus_only=True, update=True):
         assert isinstance(debug, bool)
         Print.heading('Starting remote benchmark')
         try:
@@ -344,31 +349,30 @@ class Bench:
             committee_copy = deepcopy(committee)
             committee_copy.remove_nodes(committee.size() - n)
 
-            for burst in bench_parameters.burst:
-                rate = bench_parameters.rate[0]
-                Print.heading(f'\nRunning {n} nodes (input rate: {(rate*len(bench_parameters.nodes)*(int(1000/burst))):,} tx/s, burst : {burst:,})')
+            rate = bench_parameters.rate[0]
+            Print.heading(f'\nRunning {n} nodes (block size: {bench_parameters.max_block_size} B,)')
 
-                # Run the benchmark.
-                for i in range(bench_parameters.runs):
-                    Print.heading(f'Run {i+1}/{bench_parameters.runs}')
-                    try:
-                        self._run_single(
-                            rate, burst, committee_copy, bench_parameters, debug, consensus_only=consensus_only
-                        )
+            # Run the benchmark.
+            for i in range(bench_parameters.runs):
+                Print.heading(f'Run {i+1}/{bench_parameters.runs}')
+                try:
+                    self._run_single(
+                        rate, committee_copy, bench_parameters, debug, consensus_only=consensus_only
+                    )
 
-                        faults = bench_parameters.faults
-                        logger = self._logs(committee_copy, burst, faults, consensus_only=consensus_only)
-                        logger.print(PathMaker.result_file(
-                            faults,
-                            n, 
-                            bench_parameters.workers,
-                            bench_parameters.collocate,
-                            rate, 
-                            bench_parameters.tx_size, 
-                        ))
-                    except (subprocess.SubprocessError, GroupException, ParseError) as e:
-                        self.kill(hosts=selected_hosts)
-                        if isinstance(e, GroupException):
-                            e = FabricError(e)
-                        Print.error(BenchError('Benchmark failed', e))
-                        continue
+                    faults = bench_parameters.faults
+                    logger = self._logs(committee_copy, faults, consensus_only=consensus_only)
+                    logger.print(PathMaker.result_file(
+                        faults,
+                        n, 
+                        bench_parameters.workers,
+                        bench_parameters.collocate,
+                        rate, 
+                        bench_parameters.tx_size, 
+                    ))
+                except (subprocess.SubprocessError, GroupException, ParseError) as e:
+                    self.kill(hosts=selected_hosts)
+                    if isinstance(e, GroupException):
+                        e = FabricError(e)
+                    Print.error(BenchError('Benchmark failed', e))
+                    continue
