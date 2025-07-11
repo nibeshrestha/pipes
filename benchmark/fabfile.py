@@ -18,10 +18,11 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 5,
+        'duration': 20,
     }
+
     node_params = {
-        'max_packet_size': 20000,
+        'max_packet_size': 1000000,
         'meta_indep_size': 1000,
         'meta_dep_size': 1000,
         'client_rate': 20, # in ms
@@ -126,7 +127,6 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'runs': 1,
     }
     node_params = {
-        'max_block_size': 1_10000,
         'max_packet_size': 25000,
         'meta_indep_size': 1000,
         'meta_dep_size': 1000,

@@ -129,7 +129,9 @@ impl Parameters {
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
         info!("Batch size set to {} B", self.batch_size);
-        info!("Block size set to {} Certificates", self.max_packet_size);
+        info!("Block size set to {} B", self.max_packet_size);
+        info!("Dep meta size set to {} B ", self.meta_dep_size);
+        info!("Indep meta size set to {} B ", self.meta_indep_size);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
     }
 }
