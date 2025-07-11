@@ -376,7 +376,7 @@ class Bench:
             committee_copy.remove_nodes(committee.size() - n)
 
             rate = bench_parameters.rate[0]
-            Print.heading(f'\nRunning {n} nodes (block size: {bench_parameters.max_block_size} B,)')
+            Print.heading(f'\nRunning {n} nodes ')
 
             # Run the benchmark.
             for i in range(bench_parameters.runs):

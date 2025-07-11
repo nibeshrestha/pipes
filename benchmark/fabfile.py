@@ -123,15 +123,17 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 60,
+        'duration': 120,
         'runs': 1,
     }
+
     node_params = {
-        'max_packet_size': 25000,
+        'max_packet_size': 10000,
         'meta_indep_size': 1000,
         'meta_dep_size': 1000,
         'consensus_only': consensus_only,
-        'timeout_delay': 20,  # ms
+        'timeout_delay': 10,  # ms
+        'client_rate': 10, # in ms
         'header_size': 1_000,  # bytes
         'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds

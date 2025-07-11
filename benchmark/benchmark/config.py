@@ -179,6 +179,7 @@ class NodeParameters:
             inputs += [json['sync_retry_nodes']]
             inputs += [json['batch_size']]
             inputs += [json['max_batch_delay']]
+            inputs += [json['max_packet_size']]
             inputs += [json['meta_indep_size']]
             inputs += [json['meta_dep_size']]
             inputs += [json['client_rate']]

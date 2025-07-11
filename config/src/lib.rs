@@ -122,7 +122,8 @@ impl Parameters {
             info!("Running consensus in isolation");
         }
 
-        info!("Timeout delay set to {} ms", self.timeout_delay);
+        info!("Block frequency set to {} ms", self.timeout_delay);
+        info!("Client rate set to {} ms", self.client_rate);
         info!("Header size set to {} B", self.header_size);
         info!("Max header delay set to {} ms", self.max_header_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
