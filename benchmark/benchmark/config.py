@@ -63,7 +63,7 @@ class Committee:
         port = base_port
         self.json = {'authorities': OrderedDict()}
         for name, hosts in addresses.items():
-            port = base_port
+            # port = base_port
             host = hosts.pop(0)
             consensus_addr = {
                 'consensus_to_consensus': f'{host}:{port}',
@@ -179,6 +179,9 @@ class NodeParameters:
             inputs += [json['sync_retry_nodes']]
             inputs += [json['batch_size']]
             inputs += [json['max_batch_delay']]
+            inputs += [json['meta_indep_size']]
+            inputs += [json['meta_dep_size']]
+            inputs += [json['client_rate']]
         except KeyError as e:
             raise ConfigError(f'Malformed parameters: missing key {e}')
 
@@ -221,9 +224,7 @@ class BenchParameters:
 
             self.duration = int(json['duration'])
 
-            self.runs = int(json['runs']) if 'runs' in json else 1
-        
-            self.max_block_size = int(json['max_block_size'])
+            self.runs = int(json['runs']) if 'runs' in json else 1        
         except KeyError as e:
             raise ConfigError(f'Malformed bench parameters: missing key {e}')
 

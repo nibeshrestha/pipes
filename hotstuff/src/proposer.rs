@@ -1,5 +1,7 @@
 use crate::consensus::{ConsensusMessage, Round};
+use crate::error::ConsensusResult;
 use crate::messages::{Block, Proposal, QC};
+use crate::timer::Timer;
 use bytes::Bytes;
 use config::{Committee, Parameters};
 use crypto::Hash;
@@ -8,6 +10,7 @@ use log::{debug, info};
 use network::{CancelHandler, ReliableSender};
 use primary::Certificate;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::{sleep, Duration, Instant};
 
@@ -24,17 +27,20 @@ pub struct Proposer {
     in_progress: HashMap<Round, Vec<CancelHandler>>,
     last_proposed: Block,
     max_block_delay: u64,
-    max_block_size: usize,
     max_packet_size: usize,
     rx_mempool: Receiver<Certificate>,
     rx_core: Receiver<ProposerMessage>,
     tx_proposer_core: Sender<Proposal>,
     tx_committer: Sender<Certificate>,
-    buffer: Vec<u8>,
+    buffer: Vec<u64>,
     network: ReliableSender,
     proposal_request: Option<QC>,
     round: Round,
     counter: u64,
+    meta_indep_size: usize,
+    meta_dep_size: usize,
+    timer: Timer,
+    is_proposer: bool,
 }
 
 impl Proposer {
@@ -42,12 +48,15 @@ impl Proposer {
         name: PublicKey,
         consensus_only: bool,
         committee: Committee,
-        max_block_size: usize,
         max_packet_size: usize,
+        meta_indep_size: usize,
+        meta_dep_size: usize,
         rx_mempool: Receiver<Certificate>,
         rx_core: Receiver<ProposerMessage>,
         tx_proposer_core: Sender<Proposal>,
         tx_committer: Sender<Certificate>,
+        client_rate: u64,
+        is_proposer: bool,
     ) {
         tokio::spawn(async move {
             Self {
@@ -57,7 +66,6 @@ impl Proposer {
                 in_progress: HashMap::new(),
                 last_proposed: Block::genesis(),
                 max_block_delay: 2_000,
-                max_block_size,
                 max_packet_size,
                 rx_mempool,
                 rx_core,
@@ -67,7 +75,11 @@ impl Proposer {
                 network: ReliableSender::new(),
                 proposal_request: None,
                 round: 1,
-                counter: 0
+                counter: 0,
+                meta_indep_size,
+                meta_dep_size,
+                timer: Timer::new(client_rate),
+                is_proposer,
             }
             .run()
             .await;
@@ -79,13 +91,21 @@ impl Proposer {
     // Such pending txs should be those included in blocks that have been proposed/voted on
     // but have not yet satisfied the commit rule. Txs should only be removed from the Proposer
     // once they have been committed.
-    fn get_payload(&mut self) -> Vec<u8> {
-        
-        if self.buffer.len() < self.max_block_size {
-            self.buffer.drain(..).collect()
+    fn get_payload(&mut self) -> u64 {
+        if self.buffer.len() > 0 {
+            self.buffer.remove(0)
         } else {
-            self.buffer.drain(0..self.max_block_size).collect()
+            info!("Empty buffer");
+            0u64
         }
+    }
+
+    async fn client_reset(&mut self) {
+        // info!("Timeout reached for round {}", self.round);
+        info!("Received sample txn {}", self.counter);
+        self.buffer.push(self.counter);
+        self.counter = self.counter + 1;
+        self.timer.reset();
     }
 
     async fn send_proposal(&mut self, proposal: Proposal) {
@@ -129,22 +149,24 @@ impl Proposer {
 
     async fn make_proposal(&mut self) -> Proposal {
         let mut payload;
-        
-        payload = vec![0u8; self.max_packet_size];
+        let sample_tx = self.get_payload();
+
+        payload = vec![0u8; self.max_packet_size - 8];
+        let mut meta_indep = vec![0u8; self.meta_indep_size];
+        let mut meta_dep = vec![0u8; self.meta_dep_size];
 
         let b = Block::new(
             self.name,
+            sample_tx,
             payload,
+            meta_indep,
+            meta_dep,
             self.round,
             self.counter,
         )
         .await;
-        // self.counter += 1;
 
-        // if self.counter == (self.max_block_size/self.max_packet_size) as u64 {
         self.round += 1;
-        //     self.counter = 0;
-        // }
 
         // self.record_proposal(b.clone());
         Proposal::new(b)
@@ -173,6 +195,9 @@ impl Proposer {
     }
 
     async fn run(&mut self) {
+        if self.is_proposer {
+            self.timer.reset();
+        }
 
         loop {
             tokio::select! {
@@ -180,6 +205,11 @@ impl Proposer {
                     match m {
                         ProposerMessage::Propose() => self.propose().await,
                         ProposerMessage::Cleanup(r) => self.cleanup(r)
+                    }
+                },
+                () = &mut self.timer => {
+                    if self.is_proposer {
+                        self.client_reset().await
                     }
                 },
             }

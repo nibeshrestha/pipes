@@ -14,30 +14,38 @@ use std::fmt;
 #[path = "tests/messages_tests.rs"]
 pub mod messages_tests;
 
-
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Block {
     pub author: PublicKey,
     // Digest::default signifies a dummy block, unless round is also
     // 0, in which case the block is the Genesis block.
     pub parent: Digest,
+    pub sample_tx: u64,
     pub payload: Vec<u8>,
+    pub meta_indep: Vec<u8>,
+    pub meta_dep: Vec<u8>,
     // Height in Simplex
     pub round: Round,
-    pub idx: u64, 
+    pub idx: u64,
 }
 
 impl Block {
     pub async fn new(
         author: PublicKey,
+        sample_tx: u64,
         payload: Vec<u8>,
+        meta_indep: Vec<u8>,
+        meta_dep: Vec<u8>,
         round: Round,
-        idx: u64
+        idx: u64,
     ) -> Self {
         let mut b = Block {
             author,
             parent: Digest::default(),
+            sample_tx,
             payload,
+            meta_indep,
+            meta_dep,
             round,
             idx,
         };
@@ -48,7 +56,10 @@ impl Block {
         Self {
             author: PublicKey::default(),
             parent: Digest::default(),
+            sample_tx: 0 as u64,
             payload: Vec::default(),
+            meta_indep: Vec::default(),
+            meta_dep: Vec::default(),
             round,
             idx: 0 as u64,
         }
@@ -58,9 +69,12 @@ impl Block {
         Self {
             author: PublicKey::default(),
             parent: Digest::default(),
+            sample_tx: 0,
             payload: Vec::default(),
+            meta_indep: Vec::default(),
+            meta_dep: Vec::default(),
             round: 0,
-            idx: 0
+            idx: 0,
         }
     }
 
@@ -85,7 +99,7 @@ impl Hash for Block {
         let mut hasher = Sha512::new();
         hasher.update(self.author.0);
         hasher.update(self.round.to_le_bytes());
-        hasher.update(self.idx.to_le_bytes());
+        hasher.update(self.sample_tx.to_le_bytes());
         Digest(hasher.finalize().as_slice()[..32].try_into().unwrap())
     }
 }
@@ -94,11 +108,13 @@ impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{}: CMB(author {}, round {}, payload_len {})",
+            "{}: CMB(author {}, sample {}, payload_len {} meta_indep {} meta_dep {})",
             self.digest(),
             self.author,
-            self.round,
-            self.payload.len()
+            self.sample_tx,
+            self.payload.len() + 8,
+            self.meta_indep.len(),
+            self.meta_dep.len()
         )
     }
 }

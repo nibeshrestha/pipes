@@ -222,8 +222,7 @@ impl Core {
     }
 
     async fn propose_normal(&mut self) {
-        self.propose_if_leader()
-            .await
+        self.propose_if_leader().await
     }
 
     async fn handle_proposal(&mut self, p: Proposal) -> ConsensusResult<()> {
@@ -231,9 +230,13 @@ impl Core {
         // *self.processing_blocks.entry(r).or_insert(0) += 1;
         // let counter = self.processing_blocks.get(&r).unwrap_or(&0);
         // if (counter == &5){
-            info!("Received {:?}", p);
+        info!(
+            "Received {:?} counter {:?}",
+            p,
+            p.block.payload.last().unwrap()
+        );
         // }
-        
+
         Ok(())
     }
 
@@ -241,7 +244,7 @@ impl Core {
         // Upon booting, generate the very first block (if we are the leader).
         // Also, schedule a timer in case we don't hear from the leader.
         self.timer.reset();
-        self.propose_normal().await;
+        // self.propose_normal().await;
 
         // This is the main loop: it processes incoming blocks, votes and QCs,
         // and receives timeout notifications from our Timeout Manager.

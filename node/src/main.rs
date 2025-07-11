@@ -7,7 +7,6 @@ use config::{Committee, KeyPair, Parameters, WorkerId};
 use crypto::SignatureService;
 use env_logger::Env;
 use hotstuff::{Block, Consensus};
-use log::debug;
 use primary::Primary;
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};

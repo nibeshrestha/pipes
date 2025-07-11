@@ -54,11 +54,11 @@ class Bench:
         Print.info('Installing rust and cloning the repo...')
         cmd = [
             'sudo apt-get update',
+            'sudo apt-get -y install build-essential',
             'sudo apt-get -y upgrade',
             'sudo apt-get -y autoremove',
 
             # The following dependencies prevent the error: [error: linker `cc` not found].
-            'sudo apt-get -y install build-essential',
             'sudo apt-get -y install cmake',
 
             # Install rust (non-interactive).
@@ -68,10 +68,6 @@ class Bench:
 
             # This is missing from the Rocksdb installer (needed for Rocksdb).
             'sudo apt-get install -y clang',
-
-            'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
-            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit',
-            'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms',
 
             # Clone the repo.
             f'(git clone {self.settings.repo_url} || (cd {self.settings.repo_name} ; git pull))'
@@ -91,8 +87,8 @@ class Bench:
         Print.info('Setting TC filter...')
         cmd = [
             'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
-            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit',
-            'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit ceil 100mbit',
+            'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms limit 10000',
         ]
         hosts = self.manager.hosts(flat=True)
         try:

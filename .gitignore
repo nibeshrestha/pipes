@@ -2,4 +2,7 @@ target
 benchmark/benchmark/key.json
 benchmark/.parameters.json
 .DS_Store
+.db-*
+.committee.json
+.node-*?.json
 

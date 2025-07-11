@@ -18,14 +18,13 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 20,
-        'max_block_size': 1_000_000,
+        'duration': 5,
     }
     node_params = {
-        'max_block_size': 1_000_000,
-        'max_packet_size': 200_000,
-        'dependent_meta_data': 10,
-        'independent_meta_data': 10,
+        'max_packet_size': 20000,
+        'meta_indep_size': 1000,
+        'meta_dep_size': 1000,
+        'client_rate': 20, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
         'header_size': 1_000,  # bytes
@@ -45,7 +44,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
 
 
 @task
-def create(ctx, nodes=5):
+def create(ctx, nodes=10):
     ''' Create a testbed'''
     try:
         InstanceManager.make().create_instances(nodes)
@@ -115,23 +114,24 @@ def reset_filter(ctx):
 
 @task
 def remote(ctx, debug=False, consensus_only=True, aggregate=False):
-    ''' Run benchmarks on AWS '''
+    ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
-        'nodes': [5],
+        'nodes': [10],
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
         'duration': 60,
         'runs': 1,
-        'max_block_size': 1_000_000
     }
     node_params = {
-        'max_block_size': 1_000_000,
-        'max_packet_size': 200_000,
+        'max_block_size': 1_10000,
+        'max_packet_size': 25000,
+        'meta_indep_size': 1000,
+        'meta_dep_size': 1000,
         'consensus_only': consensus_only,
-        'timeout_delay': 100,  # ms
+        'timeout_delay': 20,  # ms
         'header_size': 1_000,  # bytes
         'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds

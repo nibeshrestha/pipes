@@ -67,8 +67,6 @@ pub struct Parameters {
     /// The preferred header size. The primary creates a new header when it has enough parents and
     /// enough batches' digests to reach `header_size`. Denominated in bytes.
     pub header_size: usize,
-    // The maximum number of Certificates that may be included in a single consensus block.
-    pub max_block_size: usize,
     // The maximum number of Packets
     pub max_packet_size: usize,
     /// The maximum delay that the primary waits between generating two headers, even if the header
@@ -89,7 +87,9 @@ pub struct Parameters {
     pub max_batch_delay: u64,
     /// Causes Prepare messages to be unicast to a designated aggregator rather than broadcast.
     pub use_vote_aggregator: bool,
-    
+    pub meta_indep_size: usize,
+    pub meta_dep_size: usize,
+    pub client_rate: u64,
 }
 
 impl Default for Parameters {
@@ -98,7 +98,6 @@ impl Default for Parameters {
             consensus_only: false,
             timeout_delay: 5_000,
             header_size: 1_000,
-            max_block_size: 1,
             max_packet_size: 1,
             max_header_delay: 100,
             gc_depth: 50,
@@ -107,6 +106,9 @@ impl Default for Parameters {
             batch_size: 500_000,
             max_batch_delay: 100,
             use_vote_aggregator: false,
+            meta_indep_size: 1,
+            meta_dep_size: 1,
+            client_rate: 100,
         }
     }
 }
@@ -127,7 +129,7 @@ impl Parameters {
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
         info!("Batch size set to {} B", self.batch_size);
-        info!("Block size set to {} Certificates", self.max_block_size);
+        info!("Block size set to {} Certificates", self.max_packet_size);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
     }
 }

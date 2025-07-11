@@ -35,7 +35,7 @@ pub enum ConsensusMessage {
     Propose(Proposal),
     Vote(Vote),
     SyncRequest(Digest, PublicKey),
-    SyncResponse(Block)
+    SyncResponse(Block),
 }
 
 pub struct Consensus;
@@ -84,6 +84,7 @@ impl Consensus {
 
         // Make the leader election module.
         let leader_elector = LeaderElector::new(committee.clone());
+        let is_proposer = name == leader_elector.get_leader(1);
 
         // Make the mempool driver.
         let mempool_driver = MempoolDriver::new(committee.clone(), tx_mempool);
@@ -133,12 +134,15 @@ impl Consensus {
             name,
             parameters.consensus_only,
             committee.clone(),
-            parameters.max_block_size,
             parameters.max_packet_size,
+            parameters.meta_indep_size,
+            parameters.meta_dep_size,
             rx_mempool,
             /* rx_message */ rx_core_proposer,
             tx_proposer_core,
             tx_mempool_copy,
+            parameters.client_rate,
+            is_proposer,
         );
 
         // Spawn the helper module.
