@@ -24,7 +24,11 @@ class Committee:
     ''' The committee looks as follows:
         "authorities: {
             "name": {
+                "is_honest": False,
                 "stake": 1,
+                "consensus: {
+                    "consensus_to_consensus": x.x.x.x:x,
+                },
                 "primary: {
                     "primary_to_primary": x.x.x.x:x,
                     "worker_to_primary": x.x.x.x:x,
@@ -42,7 +46,10 @@ class Committee:
         }
     '''
 
-    def __init__(self, addresses, base_port):
+    def __init__(self, json):
+        self.json = json
+
+    def address_list_to_json(addresses, base_port, faults):
         ''' The `addresses` field looks as follows:
             { 
                 "name": ["host", "host", ...],
@@ -61,14 +68,17 @@ class Committee:
         assert isinstance(base_port, int) and base_port > 1024
 
         port = base_port
-        self.json = {'authorities': OrderedDict()}
-        for name, hosts in addresses.items():
-            # port = base_port
+        json = {'authorities': OrderedDict()}
+        num_authorities = len(addresses)
+
+        for i, (name, hosts) in enumerate(addresses.items()):
+            port = base_port
             host = hosts.pop(0)
             consensus_addr = {
                 'consensus_to_consensus': f'{host}:{port}',
             }
             port += 1
+
             primary_addr = {
                 'primary_to_primary': f'{host}:{port}',
                 'worker_to_primary': f'{host}:{port + 1}'
@@ -84,17 +94,32 @@ class Committee:
                 }
                 port += 3
 
-            self.json['authorities'][name] = {
+            json['authorities'][name] = {
+                # Corresponds to the determination of faulty nodes in primary_addresses.
+                'is_honest': i < num_authorities - faults,
                 'stake': 1,
                 'consensus': consensus_addr,
                 'primary': primary_addr,
                 'workers': workers_addr
             }
+        return json
+
+    @classmethod
+    def from_address_list(cls, addresses, base_port, faults):
+        return cls(Committee.address_list_to_json(addresses, base_port, faults))
+
+    @classmethod
+    def from_file(cls, filename):
+        with open(filename, 'r') as f:
+            json = load(f)
+        return cls(json)
 
     def primary_addresses(self, faults=0):
         ''' Returns an ordered list of primaries' addresses. '''
         assert faults < self.size()
         addresses = []
+        # TODO: Old way of doing things from when role of nodes was not recorded.
+        # Probably better to derive this from the 'is_honest' field now.
         good_nodes = self.size() - faults
         for authority in list(self.json['authorities'].values())[:good_nodes]:
             addresses += [authority['primary']['primary_to_primary']]
@@ -109,7 +134,34 @@ class Committee:
             authority_addresses = []
             for id, worker in authority['workers'].items():
                 authority_addresses += [(id, worker['transactions'])]
+                addresses.append(authority_addresses)
+        return addresses
+    
+    def batch_proposer_workers_addresses(self, faults=0):
+        ''' Returns an ordered list of list of workers' addresses. '''
+        assert faults < self.size()
+        addresses = []
+        good_nodes = self.size() - faults
+        for authority in list(self.json['authorities'].values())[:good_nodes]:
+            authority_addresses = []
+            for id, worker in authority['workers'].items():
+                authority_addresses += [(id, worker['transactions'])]
             addresses.append(authority_addresses)
+        return addresses
+    
+    def addresses_to_wait(self, faults=0):
+        ''' Returns a flat list of worker transaction addresses and consensus-to-consensus addresses. '''
+        assert faults < self.size()
+        addresses = []
+        good_nodes = self.size() - faults
+        
+        for authority in list(self.json['authorities'].values())[:good_nodes]:
+            for worker in authority['workers'].values():
+                addresses.append(worker['transactions'])
+        
+        for authority in list(self.json['authorities'].values())[:good_nodes]:
+            addresses.append(authority['consensus']['consensus_to_consensus'])
+        
         return addresses
 
     def ips(self, name=None):
@@ -121,6 +173,9 @@ class Committee:
 
         ips = set()
         for name in names:
+            addresses = self.json['authorities'][name]['consensus']
+            ips.add(self.ip(addresses['consensus_to_consensus']))
+
             addresses = self.json['authorities'][name]['primary']
             ips.add(self.ip(addresses['primary_to_primary']))
             ips.add(self.ip(addresses['worker_to_primary']))
@@ -146,10 +201,15 @@ class Committee:
         ''' Returns the total number of workers (all authorities altogether). '''
         return sum(len(x['workers']) for x in self.json['authorities'].values())
 
+    def faults(self):
+        '''Returns the total number of Byzantine authorities.'''
+        num_honest = sum([1 for a in self.json['authorities'].values() if a['is_honest']])
+        return self.size() - num_honest
+
     def print(self, filename):
         assert isinstance(filename, str)
         with open(filename, 'w') as f:
-            dump(self.json, f, indent=4, sort_keys=True)
+            dump(self.json, f, indent=4, sort_keys=False)
 
     @staticmethod
     def ip(address):
@@ -158,13 +218,14 @@ class Committee:
 
 
 class LocalCommittee(Committee):
-    def __init__(self, names, port, workers):
+    def __init__(self, names, port, workers, faults):
         assert isinstance(names, list)
         assert all(isinstance(x, str) for x in names)
         assert isinstance(port, int)
         assert isinstance(workers, int) and workers > 0
         addresses = OrderedDict((x, ['127.0.0.1']*(1+workers)) for x in names)
-        super().__init__(addresses, port)
+        json = Committee.address_list_to_json(addresses, port, faults)
+        super().__init__(json)
 
 
 class NodeParameters:
@@ -179,10 +240,6 @@ class NodeParameters:
             inputs += [json['sync_retry_nodes']]
             inputs += [json['batch_size']]
             inputs += [json['max_batch_delay']]
-            inputs += [json['max_packet_size']]
-            inputs += [json['meta_indep_size']]
-            inputs += [json['meta_dep_size']]
-            inputs += [json['client_rate']]
         except KeyError as e:
             raise ConfigError(f'Malformed parameters: missing key {e}')
 
@@ -225,7 +282,8 @@ class BenchParameters:
 
             self.duration = int(json['duration'])
 
-            self.runs = int(json['runs']) if 'runs' in json else 1        
+            self.runs = int(json['runs']) if 'runs' in json else 1
+
         except KeyError as e:
             raise ConfigError(f'Malformed bench parameters: missing key {e}')
 

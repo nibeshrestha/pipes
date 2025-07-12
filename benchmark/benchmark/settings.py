@@ -7,24 +7,37 @@ class SettingsError(Exception):
 
 
 class Settings:
-    def __init__(self, key_name, key_path, base_port, repo_name, repo_url,
-                 branch, instance_type, zones):
+    def __init__(
+        self,
+        deploy_key_name,
+        deploy_key_path,
+        instance_key_name, 
+        instance_key_path,
+        base_port, 
+        repo_name, 
+        repo_url,
+        branch, 
+        instance_type, 
+        zones
+    ):
         inputs_str = [
-            key_name, key_path, repo_name, repo_url, branch, instance_type
+            instance_key_name, instance_key_path, repo_name, repo_url, branch, instance_type
         ]
         if isinstance(zones, list):
-            regions = zones
+            zones = zones
         else:
-            regions = [zones]
-        inputs_str += regions
+            zones = [zones]
+        inputs_str += zones
         ok = all(isinstance(x, str) for x in inputs_str)
         ok &= isinstance(base_port, int)
-        ok &= len(regions) > 0
+        ok &= len(zones) > 0
         if not ok:
             raise SettingsError('Invalid settings types')
 
-        self.key_name = key_name
-        self.key_path = key_path
+        self.github_deploy_key_name = deploy_key_name
+        self.github_deploy_key_path = deploy_key_path
+        self.key_name = instance_key_name
+        self.key_path = instance_key_path
 
         self.base_port = base_port
 
@@ -33,7 +46,7 @@ class Settings:
         self.branch = branch
 
         self.instance_type = instance_type
-        self.zones = regions
+        self.zones = zones
 
     @classmethod
     def load(cls, filename):
@@ -42,6 +55,8 @@ class Settings:
                 data = load(f)
 
             return cls(
+                data['github_deploy_key']['name'],
+                data['github_deploy_key']['path'],
                 data['key']['name'],
                 data['key']['path'],
                 data['port'],
