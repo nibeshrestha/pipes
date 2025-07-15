@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use clap::{crate_name, crate_version, App, AppSettings, ArgMatches, SubCommand};
 use config::Export as _;
 use config::Import as _;
-use config::{Committee, KeyPair, Parameters, WorkerId};
+use config::{Committee, KeyPair, Parameters};
 use crypto::SignatureService;
 use env_logger::Env;
 use hotstuff::{Block, Consensus};
@@ -105,7 +105,6 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     match matches.subcommand() {
         // Spawn the primary and consensus core.
         ("primary", _) => {
-
             Consensus::spawn(
                 name,
                 committee,

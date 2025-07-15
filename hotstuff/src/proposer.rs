@@ -43,7 +43,7 @@ pub struct Proposer {
 
     /// false implies block proposed, true implies metadata sent
     last_action: bool,
-    nodes: u64
+    nodes: u64,
 }
 
 impl Proposer {
@@ -114,12 +114,18 @@ impl Proposer {
         let mut propagation_time;
 
         if self.last_action {
-            propagation_time = (self.meta_dep_size as u64 * self.nodes * 1000) / self.bandwidth;
-            info!("Received sample txn {:?}", self.round+1);
+            propagation_time =
+                (self.meta_dep_size as u64 * (self.nodes - 1) * 1000) / self.bandwidth;
+            info!("Received sample txn {:?}", self.round + 1);
             self.send_dependent_meta().await;
-            info!("Sent dep meta {:?} propogation time {:?}", self.round, propagation_time);
+            info!(
+                "Sent dep meta {:?} propogation time {:?}",
+                self.round, propagation_time
+            );
         } else {
-            propagation_time = ((self.payload_size + self.meta_indep_size) as u64 * self.nodes * 1000) / self.bandwidth;
+            propagation_time =
+                ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
+                    / self.bandwidth;
             self.propose().await;
             info!("propogation time {:?}", propagation_time);
         }
@@ -166,7 +172,7 @@ impl Proposer {
     async fn send_dependent_meta(&mut self) {
         let mut meta = vec![0u8; self.meta_dep_size];
 
-        let m = DependentMeta::new(self.name, meta, self.round ).await;
+        let m = DependentMeta::new(self.name, meta, self.round).await;
 
         let (names, addresses): (Vec<_>, _) = self
             .committee
