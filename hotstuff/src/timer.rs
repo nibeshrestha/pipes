@@ -23,6 +23,12 @@ impl Timer {
             .as_mut()
             .reset(Instant::now() + Duration::from_millis(self.duration));
     }
+
+    pub fn set_timer(&mut self, duration: u64) {
+        self.sleep
+            .as_mut()
+            .reset(Instant::now() + Duration::from_millis(duration));
+    }
 }
 
 impl Future for Timer {

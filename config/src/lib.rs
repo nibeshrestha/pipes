@@ -90,6 +90,10 @@ pub struct Parameters {
     pub meta_indep_size: usize,
     pub meta_dep_size: usize,
     pub client_rate: u64,
+    pub alpha: f32,
+    /// Bandwidth in Bps
+    pub bandwidth: u64,
+    pub nodes: u64,
 }
 
 impl Default for Parameters {
@@ -109,6 +113,9 @@ impl Default for Parameters {
             meta_indep_size: 1,
             meta_dep_size: 1,
             client_rate: 100,
+            alpha: 0.95,
+            bandwidth: 12500000,
+            nodes: 4,
         }
     }
 }
@@ -123,9 +130,6 @@ impl Parameters {
         }
 
         info!("Block frequency set to {} ms", self.timeout_delay);
-        info!("Client rate set to {} ms", self.client_rate);
-        info!("Header size set to {} B", self.header_size);
-        info!("Max header delay set to {} ms", self.max_header_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
@@ -133,7 +137,12 @@ impl Parameters {
         info!("Block size set to {} B", self.max_packet_size);
         info!("Dep meta size set to {} B ", self.meta_dep_size);
         info!("Indep meta size set to {} B ", self.meta_indep_size);
+        info!("Alpha set to {}", self.alpha);
+        info!("Bandwidth set to {} Bps", self.bandwidth);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
+        info!("Header size set to {} B", self.header_size);
+        info!("Max header delay set to {} ms", self.max_header_delay);
+        info!("Client rate set to {} ms", self.client_rate);
     }
 }
 

@@ -4,7 +4,6 @@ use config::Committee;
 use crypto::{Digest, Hash, PublicKey, Signature, SignatureService};
 use ed25519_dalek::Digest as _;
 use ed25519_dalek::Sha512;
-use primary::Certificate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::convert::TryInto;
@@ -23,8 +22,6 @@ pub struct Block {
     pub sample_tx: u64,
     pub payload: Vec<u8>,
     pub meta_indep: Vec<u8>,
-    pub meta_dep: Vec<u8>,
-    // Height in Simplex
     pub round: Round,
     pub idx: u64,
 }
@@ -35,7 +32,6 @@ impl Block {
         sample_tx: u64,
         payload: Vec<u8>,
         meta_indep: Vec<u8>,
-        meta_dep: Vec<u8>,
         round: Round,
         idx: u64,
     ) -> Self {
@@ -45,7 +41,6 @@ impl Block {
             sample_tx,
             payload,
             meta_indep,
-            meta_dep,
             round,
             idx,
         };
@@ -59,7 +54,6 @@ impl Block {
             sample_tx: 0 as u64,
             payload: Vec::default(),
             meta_indep: Vec::default(),
-            meta_dep: Vec::default(),
             round,
             idx: 0 as u64,
         }
@@ -72,25 +66,9 @@ impl Block {
             sample_tx: 0,
             payload: Vec::default(),
             meta_indep: Vec::default(),
-            meta_dep: Vec::default(),
             round: 0,
             idx: 0,
         }
-    }
-
-    pub fn is_well_formed(&self, committee: &Committee) -> ConsensusResult<()> {
-        // Ignore Genesis block.
-        if self.digest() != Block::genesis().digest() {
-            // Ensure the proposer has voting rights.
-            let voting_rights = committee.stake(&self.author);
-            ensure!(
-                voting_rights > 0,
-                ConsensusError::UnknownAuthority(self.author)
-            );
-            // Ensure the included signature is that of the author.
-            // self.signature.verify(&self.digest(), &self.author)?;
-        }
-        Ok(())
     }
 }
 
@@ -108,13 +86,12 @@ impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{}: CMB(author {}, sample {}, payload_len {} meta_indep {} meta_dep {})",
+            "{}: CMB(author {}, sample {}, payload_len {} meta_indep {})",
             self.digest(),
             self.author,
             self.sample_tx,
             self.payload.len() + 8,
             self.meta_indep.len(),
-            self.meta_dep.len()
         )
     }
 }
@@ -122,6 +99,59 @@ impl fmt::Debug for Block {
 impl fmt::Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "CMB{}", self.round)
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+pub struct DependentMeta {
+    pub author: PublicKey,
+    pub meta_dep: Vec<u8>,
+    pub round: Round,
+}
+
+impl DependentMeta {
+    pub async fn new(author: PublicKey, meta_dep: Vec<u8>, round: Round) -> Self {
+        let mut b = DependentMeta {
+            author,
+            meta_dep,
+            round,
+        };
+        b
+    }
+
+    pub fn dummy(round: Round) -> Self {
+        Self {
+            author: PublicKey::default(),
+            meta_dep: Vec::default(),
+            round,
+        }
+    }
+}
+
+impl Hash for DependentMeta {
+    fn digest(&self) -> Digest {
+        let mut hasher = Sha512::new();
+        hasher.update(self.author.0);
+        hasher.update(self.round.to_le_bytes());
+        Digest(hasher.finalize().as_slice()[..32].try_into().unwrap())
+    }
+}
+
+impl fmt::Debug for DependentMeta {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(
+            f,
+            "{}: CMB(author {},  meta_dep {})",
+            self.digest(),
+            self.author,
+            self.meta_dep.len()
+        )
+    }
+}
+
+impl fmt::Display for DependentMeta {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "DepMeta{}", self.round)
     }
 }
 
@@ -136,7 +166,7 @@ impl Proposal {
     }
 
     pub fn is_well_formed(&self, committee: &Committee) -> ConsensusResult<()> {
-        self.block.is_well_formed(committee)?;
+        // self.block.is_well_formed(committee)?;
 
         Ok(())
     }

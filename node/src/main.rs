@@ -7,10 +7,8 @@ use config::{Committee, KeyPair, Parameters, WorkerId};
 use crypto::SignatureService;
 use env_logger::Env;
 use hotstuff::{Block, Consensus};
-use primary::Primary;
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
-use worker::Worker;
 
 /// The default channel capacity.
 pub const CHANNEL_CAPACITY: usize = 1_000;
@@ -107,20 +105,6 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     match matches.subcommand() {
         // Spawn the primary and consensus core.
         ("primary", _) => {
-            let (tx_new_certificates, rx_new_certificates) = channel(CHANNEL_CAPACITY);
-            let (tx_feedback, rx_feedback) = channel(CHANNEL_CAPACITY);
-
-            if !parameters.consensus_only {
-                Primary::spawn(
-                    name,
-                    committee.clone(),
-                    parameters.clone(),
-                    signature_service.clone(),
-                    store.clone(),
-                    /* tx_consensus */ tx_new_certificates,
-                    /* rx_consensus */ rx_feedback,
-                );
-            }
 
             Consensus::spawn(
                 name,
@@ -128,20 +112,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
                 parameters,
                 signature_service,
                 store,
-                /* rx_mempool */ rx_new_certificates,
-                /* tx_mempool */ tx_feedback,
                 tx_output,
             );
-        }
-
-        // Spawn a single worker.
-        ("worker", Some(sub_matches)) => {
-            let id = sub_matches
-                .value_of("id")
-                .unwrap()
-                .parse::<WorkerId>()
-                .context("The worker id must be a positive integer")?;
-            Worker::spawn(keypair.name, id, committee, parameters, store);
         }
         _ => unreachable!(),
     }

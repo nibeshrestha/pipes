@@ -1,6 +1,5 @@
 use crate::consensus::Round;
 use crypto::{CryptoError, Digest, PublicKey};
-use primary::DagError;
 use store::StoreError;
 use thiserror::Error;
 
@@ -93,6 +92,4 @@ pub enum ConsensusError {
     #[error("Message {0} (round {1}) too old")]
     TooOld(Digest, Round),
 
-    #[error(transparent)]
-    DagError(#[from] DagError),
 }

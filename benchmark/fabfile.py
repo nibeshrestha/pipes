@@ -14,28 +14,31 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on localhost '''
     bench_params = {
         'faults': 0,
-        'nodes': 4,
+        'nodes': 10,
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 20,
+        'duration': 60,
     }
 
     node_params = {
+        'nodes': bench_params['nodes'],
         'max_packet_size': 1000000,
-        'meta_indep_size': 1000,
-        'meta_dep_size': 1000,
+        'meta_indep_size': 12500,
+        'meta_dep_size': 12500,
+        'alpha': 0.95,
+        'bandwidth': 12500000,
         'client_rate': 20, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
         'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds
-        'sync_retry_delay': 5_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
         'batch_size': 500_000,  # bytes
         'max_batch_delay': 200,  # ms
-        'use_vote_aggregator': aggregate
+        'use_vote_aggregator': aggregate,
+        'sync_retry_delay': 5_000,  # ms
+        'sync_retry_nodes': 3,  # number of nodes
+        'max_header_delay': 200,  # ms
     }
     try:
         ret = LocalBench(bench_params, node_params).run(debug, consensus_only)
@@ -128,9 +131,12 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     }
 
     node_params = {
-        'max_packet_size': 10000,
-        'meta_indep_size': 1000,
-        'meta_dep_size': 1000,
+        'nodes': bench_params['nodes'],
+        'max_packet_size': 1000000,
+        'meta_indep_size': 12500,
+        'meta_dep_size': 12500,
+        'alpha': 0.95,
+        'bandwidth': 12500000,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms
         'client_rate': 10, # in ms

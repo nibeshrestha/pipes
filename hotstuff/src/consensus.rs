@@ -1,12 +1,8 @@
-use crate::committer::Committer;
 use crate::core::Core;
 use crate::error::ConsensusError;
-use crate::helper::Helper;
 use crate::leader::LeaderElector;
-use crate::mempool::MempoolDriver;
-use crate::messages::{Block, Proposal, Vote, QC};
+use crate::messages::{Block, DependentMeta, Proposal, Vote, QC};
 use crate::proposer::Proposer;
-use crate::synchronizer::Synchronizer;
 use async_trait::async_trait;
 use bytes::Bytes;
 use config::{Committee, Parameters};
@@ -14,7 +10,6 @@ use crypto::{Digest, PublicKey, SignatureService};
 use futures::SinkExt as _;
 use log::{debug, info};
 use network::{MessageHandler, Receiver as NetworkReceiver, Writer};
-use primary::Certificate;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use store::Store;
@@ -34,6 +29,7 @@ pub type Round = u64;
 pub enum ConsensusMessage {
     Propose(Proposal),
     Vote(Vote),
+    DependentMeta(DependentMeta),
     SyncRequest(Digest, PublicKey),
     SyncResponse(Block),
 }
@@ -48,8 +44,6 @@ impl Consensus {
         parameters: Parameters,
         signature_service: SignatureService,
         store: Store,
-        rx_mempool: Receiver<Certificate>,
-        tx_mempool: Sender<Certificate>,
         tx_output: Sender<Block>,
     ) {
         // NOTE: This log entry is used to compute performance.
@@ -60,8 +54,6 @@ impl Consensus {
         let (tx_sync_core, rx_sync_core) = channel(CHANNEL_CAPACITY);
         let (tx_core_proposer, rx_core_proposer) = channel(CHANNEL_CAPACITY);
         let (tx_helper, rx_helper) = channel(CHANNEL_CAPACITY);
-        let (tx_commit, rx_commit) = channel(CHANNEL_CAPACITY);
-        let (tx_mempool_copy, rx_mempool_copy) = channel(CHANNEL_CAPACITY);
 
         // Spawn the network receiver.
         let mut address = committee
@@ -86,18 +78,6 @@ impl Consensus {
         let leader_elector = LeaderElector::new(committee.clone());
         let is_proposer = name == leader_elector.get_leader(1);
 
-        // Make the mempool driver.
-        let mempool_driver = MempoolDriver::new(committee.clone(), tx_mempool);
-
-        // Make the synchronizer.
-        let synchronizer = Synchronizer::new(
-            name,
-            committee.clone(),
-            store.clone(),
-            tx_sync_core.clone(),
-            parameters.sync_retry_delay,
-        );
-
         // Spawn the consensus core.
         Core::spawn(
             name,
@@ -106,47 +86,30 @@ impl Consensus {
             signature_service.clone(),
             store.clone(),
             leader_elector,
-            mempool_driver,
-            synchronizer,
             parameters.timeout_delay,
             /* rx_message */ rx_consensus,
             rx_proposer_core,
             rx_sync_core,
             tx_core_proposer,
-            tx_commit,
             tx_output,
             parameters.use_vote_aggregator,
         );
-
-        if !parameters.consensus_only {
-            // Commits the mempool certificates and their sub-dag.
-            Committer::spawn(
-                committee.clone(),
-                store.clone(),
-                parameters.gc_depth,
-                rx_mempool_copy,
-                rx_commit,
-            );
-        }
 
         // Spawn the block proposer.
         Proposer::spawn(
             name,
             parameters.consensus_only,
             committee.clone(),
-            parameters.max_packet_size,
             parameters.meta_indep_size,
             parameters.meta_dep_size,
-            rx_mempool,
             /* rx_message */ rx_core_proposer,
             tx_proposer_core,
-            tx_mempool_copy,
             parameters.client_rate,
             is_proposer,
+            parameters.alpha,
+            parameters.bandwidth,
+            parameters.nodes,
         );
-
-        // Spawn the helper module.
-        Helper::spawn(committee, store, /* rx_requests */ rx_helper);
     }
 }
 
@@ -167,18 +130,18 @@ impl MessageHandler for ConsensusReceiverHandler {
                 .send((missing, origin))
                 .await
                 .expect("Failed to send consensus message"),
-            message @ ConsensusMessage::Propose(..) => {
-                // TODO: Remove
-                debug!("Acking Proposal: {:?}", message);
-                // Reply with an ACK.
-                let _ = writer.send(Bytes::from("Ack")).await;
+            // message @ ConsensusMessage::Propose(..) => {
+            //     // TODO: Remove
+            //     debug!("Acking Proposal: {:?}", message);
+            //     // Reply with an ACK.
+            //     let _ = writer.send(Bytes::from("Ack")).await;
 
-                // Pass the message to the consensus core.
-                self.tx_consensus
-                    .send(message)
-                    .await
-                    .expect("Failed to consensus message")
-            }
+            //     // Pass the message to the consensus core.
+            //     self.tx_consensus
+            //         .send(message)
+            //         .await
+            //         .expect("Failed to consensus message")
+            // }
             message => {
                 // debug!("Received message from peer: {:?}", message);
                 self.tx_consensus

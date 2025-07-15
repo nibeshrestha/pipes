@@ -1,6 +1,6 @@
 use crate::consensus::{ConsensusMessage, Round};
 use crate::error::ConsensusResult;
-use crate::messages::{Block, Proposal, QC};
+use crate::messages::{Block, DependentMeta, Proposal, QC};
 use crate::timer::Timer;
 use bytes::Bytes;
 use config::{Committee, Parameters};
@@ -8,7 +8,6 @@ use crypto::Hash;
 use crypto::{PublicKey, SignatureService};
 use log::{debug, info};
 use network::{CancelHandler, ReliableSender};
-use primary::Certificate;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -25,13 +24,11 @@ pub struct Proposer {
     consensus_only: bool,
     committee: Committee,
     in_progress: HashMap<Round, Vec<CancelHandler>>,
+    cancel_handlers: HashMap<Round, Vec<CancelHandler>>,
     last_proposed: Block,
-    max_block_delay: u64,
-    max_packet_size: usize,
-    rx_mempool: Receiver<Certificate>,
+    payload_size: usize,
     rx_core: Receiver<ProposerMessage>,
     tx_proposer_core: Sender<Proposal>,
-    tx_committer: Sender<Certificate>,
     buffer: Vec<u64>,
     network: ReliableSender,
     proposal_request: Option<QC>,
@@ -39,8 +36,14 @@ pub struct Proposer {
     counter: u64,
     meta_indep_size: usize,
     meta_dep_size: usize,
+    alpha: f32,
+    bandwidth: u64,
     timer: Timer,
     is_proposer: bool,
+
+    /// false implies block proposed, true implies metadata sent
+    last_action: bool,
+    nodes: u64
 }
 
 impl Proposer {
@@ -48,29 +51,30 @@ impl Proposer {
         name: PublicKey,
         consensus_only: bool,
         committee: Committee,
-        max_packet_size: usize,
         meta_indep_size: usize,
         meta_dep_size: usize,
-        rx_mempool: Receiver<Certificate>,
         rx_core: Receiver<ProposerMessage>,
         tx_proposer_core: Sender<Proposal>,
-        tx_committer: Sender<Certificate>,
         client_rate: u64,
         is_proposer: bool,
+        alpha: f32,
+        bandwidth: u64,
+        nodes: u64,
     ) {
         tokio::spawn(async move {
+            let meta_size = meta_indep_size + meta_dep_size;
+            let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
+
             Self {
                 name,
                 consensus_only,
                 committee,
                 in_progress: HashMap::new(),
+                cancel_handlers: HashMap::new(),
                 last_proposed: Block::genesis(),
-                max_block_delay: 2_000,
-                max_packet_size,
-                rx_mempool,
+                payload_size,
                 rx_core,
                 tx_proposer_core,
-                tx_committer,
                 buffer: Vec::new(),
                 network: ReliableSender::new(),
                 proposal_request: None,
@@ -78,8 +82,12 @@ impl Proposer {
                 counter: 0,
                 meta_indep_size,
                 meta_dep_size,
+                alpha,
+                bandwidth,
                 timer: Timer::new(client_rate),
                 is_proposer,
+                last_action: false,
+                nodes,
             }
             .run()
             .await;
@@ -101,11 +109,24 @@ impl Proposer {
     }
 
     async fn client_reset(&mut self) {
-        // info!("Timeout reached for round {}", self.round);
-        info!("Received sample txn {}", self.counter);
         self.buffer.push(self.counter);
-        self.counter = self.counter + 1;
-        self.timer.reset();
+
+        let mut propagation_time;
+
+        if self.last_action {
+            propagation_time = (self.meta_dep_size as u64 * self.nodes * 1000) / self.bandwidth;
+            info!("Received sample txn {:?}", self.round+1);
+            self.send_dependent_meta().await;
+            info!("Sent dep meta {:?} propogation time {:?}", self.round, propagation_time);
+        } else {
+            propagation_time = ((self.payload_size + self.meta_indep_size) as u64 * self.nodes * 1000) / self.bandwidth;
+            self.propose().await;
+            info!("propogation time {:?}", propagation_time);
+        }
+
+        self.last_action = !self.last_action;
+        // self.timer.reset();
+        self.timer.set_timer(propagation_time);
     }
 
     async fn send_proposal(&mut self, proposal: Proposal) {
@@ -124,12 +145,7 @@ impl Proposer {
 
         let message = bincode::serialize(&ConsensusMessage::Propose(proposal))
             .expect("Failed to serialize block");
-        // References to the connections that we are continuously trying to deliver
-        // this proposal on. We keep them around to ensure that we keep sending until:
-        //   1. we deliver it (indicated by an ACK from the recipient), or;
-        //   2. we observe either a QC for it (indicating our job is done), or;
-        //   3. we observe a TC for the round (indicating the network is asynchronous), or;
-        //   4. we replace it with another proposal for this round (only occurs if Optimistic).
+
         let handles = self
             .network
             .broadcast(addresses, Bytes::from(message))
@@ -147,26 +163,46 @@ impl Proposer {
         }
     }
 
+    async fn send_dependent_meta(&mut self) {
+        let mut meta = vec![0u8; self.meta_dep_size];
+
+        let m = DependentMeta::new(self.name, meta, self.round ).await;
+
+        let (names, addresses): (Vec<_>, _) = self
+            .committee
+            .others_consensus(&self.name)
+            .into_iter()
+            .map(|(name, x)| (name, x.consensus_to_consensus))
+            .unzip();
+
+        let message = bincode::serialize(&ConsensusMessage::DependentMeta(m))
+            .expect("Failed to serialize block");
+
+        let handles = self
+            .network
+            .broadcast(addresses, Bytes::from(message))
+            .await;
+        self.cancel_handlers.insert(self.round, handles);
+    }
+
     async fn make_proposal(&mut self) -> Proposal {
         let mut payload;
-        let sample_tx = self.get_payload();
 
-        payload = vec![0u8; self.max_packet_size - 8];
+        payload = vec![0u8; self.payload_size - 8];
         let mut meta_indep = vec![0u8; self.meta_indep_size];
-        let mut meta_dep = vec![0u8; self.meta_dep_size];
+
+        self.round += 1;
+        let sample_tx: u64 = self.round;
 
         let b = Block::new(
             self.name,
             sample_tx,
             payload,
             meta_indep,
-            meta_dep,
             self.round,
             self.counter,
         )
         .await;
-
-        self.round += 1;
 
         // self.record_proposal(b.clone());
         Proposal::new(b)
@@ -192,19 +228,19 @@ impl Proposer {
         // consuming our bandwidth by never ACKing.
         self.in_progress
             .retain(|proposal_round, _| *proposal_round > r);
+        self.cancel_handlers.retain(|round, _| *round > r);
     }
 
     async fn run(&mut self) {
-        if self.is_proposer {
-            self.timer.reset();
-        }
+        self.timer.set_timer(1000);
 
         loop {
             tokio::select! {
                 Some(m) = self.rx_core.recv() => {
                     match m {
-                        ProposerMessage::Propose() => self.propose().await,
-                        ProposerMessage::Cleanup(r) => self.cleanup(r)
+                        // ProposerMessage::Propose() => self.propose().await,
+                        ProposerMessage::Cleanup(r) => self.cleanup(r),
+                        _ => ()
                     }
                 },
                 () = &mut self.timer => {

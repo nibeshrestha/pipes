@@ -72,7 +72,7 @@ class Committee:
         num_authorities = len(addresses)
 
         for i, (name, hosts) in enumerate(addresses.items()):
-            port = base_port
+            # port = base_port
             host = hosts.pop(0)
             consensus_addr = {
                 'consensus_to_consensus': f'{host}:{port}',
@@ -218,7 +218,7 @@ class Committee:
 
 
 class LocalCommittee(Committee):
-    def __init__(self, names, port, workers, faults):
+    def __init__(self, names, port, workers, faults=0):
         assert isinstance(names, list)
         assert all(isinstance(x, str) for x in names)
         assert isinstance(port, int)
@@ -234,12 +234,8 @@ class NodeParameters:
         try:
             inputs += [json['timeout_delay']]
             inputs += [json['header_size']]
-            inputs += [json['max_header_delay']]
             inputs += [json['gc_depth']]
-            inputs += [json['sync_retry_delay']]
-            inputs += [json['sync_retry_nodes']]
             inputs += [json['batch_size']]
-            inputs += [json['max_batch_delay']]
         except KeyError as e:
             raise ConfigError(f'Malformed parameters: missing key {e}')
 

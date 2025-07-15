@@ -2,10 +2,8 @@ use crate::aggregator::Aggregator;
 use crate::consensus::{ConsensusMessage, Round};
 use crate::error::{ConsensusError, ConsensusResult};
 use crate::leader::LeaderElector;
-use crate::mempool::MempoolDriver;
-use crate::messages::{Block, Proposal, ProposalType, Vote, VoteType, QC};
+use crate::messages::{Block, DependentMeta, Proposal, ProposalType, Vote, VoteType, QC};
 use crate::proposer::ProposerMessage;
-use crate::synchronizer::Synchronizer;
 use crate::timer::Timer;
 use async_recursion::async_recursion;
 use bytes::Bytes;
@@ -14,7 +12,6 @@ use crypto::{Digest, Hash as _};
 use crypto::{PublicKey, SignatureService};
 use log::{debug, error, info, warn};
 use network::SimpleSender;
-use primary::Certificate;
 use std::collections::{HashMap, HashSet};
 use store::Store;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -34,7 +31,6 @@ pub struct Core {
     last_timeout: Round,
     leader_elector: LeaderElector,
     locked: QC,
-    mempool_driver: MempoolDriver,
     name: PublicKey,
     // Index of uncommitted blocks by round.
     pending_blocks: HashMap<Round, Block>,
@@ -45,10 +41,8 @@ pub struct Core {
     rx_synchronizer: Receiver<Block>,
     signature_service: SignatureService,
     store: Store,
-    synchronizer: Synchronizer,
     sync_requests: HashSet<Digest>,
     timer: Timer,
-    tx_commit: Sender<Certificate>,
     tx_output: Sender<Block>,
     tx_proposer: Sender<ProposerMessage>,
     // Index of uncommitted blocks by Digest.
@@ -71,14 +65,11 @@ impl Core {
         signature_service: SignatureService,
         store: Store,
         leader_elector: LeaderElector,
-        mempool_driver: MempoolDriver,
-        synchronizer: Synchronizer,
         timeout_delay: u64,
         rx_message: Receiver<ConsensusMessage>,
         rx_proposer: Receiver<Proposal>,
         rx_synchronizer: Receiver<Block>,
         tx_proposer: Sender<ProposerMessage>,
-        tx_commit: Sender<Certificate>,
         tx_output: Sender<Block>,
         use_vote_aggregator: bool,
     ) {
@@ -108,7 +99,6 @@ impl Core {
                 last_timeout: GENESIS,
                 leader_elector,
                 locked: QC::genesis(),
-                mempool_driver,
                 name,
                 qc_sender: SimpleSender::new(),
                 round: 1,
@@ -117,10 +107,8 @@ impl Core {
                 rx_synchronizer,
                 signature_service,
                 store,
-                synchronizer,
                 sync_requests: HashSet::new(),
                 timer: Timer::new(timeout_delay),
-                tx_commit,
                 tx_output,
                 tx_proposer,
                 pending_blocks,
@@ -195,7 +183,7 @@ impl Core {
         // warn!("Timeout reached for round {}", self.round);
         self.propose_if_leader().await;
         // Ensure that we trigger Timeout Sync for r at most once every timeout_delay.
-        self.timer.reset();
+        // self.timer.reset();
         Ok(())
     }
 
@@ -240,6 +228,11 @@ impl Core {
         Ok(())
     }
 
+    async fn handle_dependent_meta(&mut self, meta: DependentMeta) -> ConsensusResult<()> {
+        info!("Received Dependent Meta {:?}", meta.round);
+        Ok(())
+    }
+
     pub async fn run(&mut self) {
         // Upon booting, generate the very first block (if we are the leader).
         // Also, schedule a timer in case we don't hear from the leader.
@@ -253,6 +246,7 @@ impl Core {
                 Some(message) = self.rx_message.recv() =>
                 match message {
                     ConsensusMessage::Propose(proposal) => self.handle_proposal(proposal).await,
+                    ConsensusMessage::DependentMeta(meta) => self.handle_dependent_meta(meta).await,
                     _ => panic!("Unexpected protocol message")
                 },
                 Some(proposal) = self.rx_proposer.recv() => self.handle_proposal(proposal).await,

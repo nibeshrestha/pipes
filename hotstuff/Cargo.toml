@@ -22,7 +22,6 @@ store = { path = "../store" }
 crypto = { path = "../crypto" }
 network = { path = "../network" }
 config = { path = "../config" }
-primary = { path = "../primary" }
 
 [dev-dependencies]
 tokio-util = { version = "0.6.2", features= ["codec"] }
