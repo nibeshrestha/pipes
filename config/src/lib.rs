@@ -67,8 +67,6 @@ pub struct Parameters {
     /// The preferred header size. The primary creates a new header when it has enough parents and
     /// enough batches' digests to reach `header_size`. Denominated in bytes.
     pub header_size: usize,
-    // The maximum number of Packets
-    pub max_packet_size: usize,
     /// The maximum delay that the primary waits between generating two headers, even if the header
     /// did not reach `max_header_size`. Denominated in ms.
     pub max_header_delay: u64,
@@ -102,7 +100,6 @@ impl Default for Parameters {
             consensus_only: false,
             timeout_delay: 5_000,
             header_size: 1_000,
-            max_packet_size: 1,
             max_header_delay: 100,
             gc_depth: 50,
             sync_retry_delay: 5_000,
@@ -128,13 +125,15 @@ impl Parameters {
         if self.consensus_only {
             info!("Running consensus in isolation");
         }
+        let meta_size = self.meta_indep_size + self.meta_dep_size;
+        let payload_size: usize = ((self.alpha * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
 
         info!("Block frequency set to {} ms", self.timeout_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
         info!("Batch size set to {} B", self.batch_size);
-        info!("Block size set to {} B", self.max_packet_size);
+        info!("Block size set to {} B", payload_size);
         info!("Dep meta size set to {} B ", self.meta_dep_size);
         info!("Indep meta size set to {} B ", self.meta_indep_size);
         info!("Alpha set to {}", self.alpha);
