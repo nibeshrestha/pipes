@@ -21,19 +21,11 @@ use tokio::sync::mpsc::{Receiver, Sender};
 pub mod core_tests;
 
 pub struct Core {
-    aggregator: Aggregator,
     committee: Committee,
     committable_blocks: HashMap<Digest, Round>,
-    consensus_only: bool,
-    last_commit: Block,
-    last_vote: Round,
-    last_proposal: Round,
-    last_timeout: Round,
     leader_elector: LeaderElector,
     locked: QC,
     name: PublicKey,
-    // Index of uncommitted blocks by round.
-    pending_blocks: HashMap<Round, Block>,
     qc_sender: SimpleSender,
     round: Round,
     rx_proposer: Receiver<Proposal>,
@@ -45,12 +37,7 @@ pub struct Core {
     timer: Timer,
     tx_output: Sender<Block>,
     tx_proposer: Sender<ProposerMessage>,
-    // Index of uncommitted blocks by Digest.
-    uncommitted_blocks: HashMap<Digest, Block>,
-    uncommitted_qcs: HashMap<Round, QC>,
-    use_vote_aggregator: bool,
     vote_sender: SimpleSender,
-    processing_blocks: HashMap<Round, u64>,
 }
 
 // Identifier of the Genesis round.
@@ -61,7 +48,6 @@ impl Core {
     pub fn spawn(
         name: PublicKey,
         committee: Committee,
-        consensus_only: bool,
         signature_service: SignatureService,
         store: Store,
         leader_elector: LeaderElector,
@@ -71,32 +57,11 @@ impl Core {
         rx_synchronizer: Receiver<Block>,
         tx_proposer: Sender<ProposerMessage>,
         tx_output: Sender<Block>,
-        use_vote_aggregator: bool,
     ) {
         tokio::spawn(async move {
-            let mut uncommitted_blocks = HashMap::new();
-            let mut pending_blocks = HashMap::new();
-            let mut uncommitted_qcs = HashMap::new();
-            let genesis_block = Block::genesis();
-            let genesis_qc = QC::genesis();
-            let mut genesis_round_blocks = HashMap::new();
-            let mut genesis_round_normal_blocks = HashSet::new();
-            let digest = genesis_block.digest();
-            genesis_round_normal_blocks.insert(digest.clone());
-            genesis_round_blocks.insert(ProposalType::Normal, genesis_round_normal_blocks);
-            uncommitted_blocks.insert(digest.clone(), genesis_block.clone());
-            pending_blocks.insert(genesis_block.round, genesis_block.clone());
-            uncommitted_qcs.insert(genesis_block.round, genesis_qc.clone());
-
             Self {
-                aggregator: Aggregator::new(committee.clone()),
                 committee,
                 committable_blocks: HashMap::new(),
-                consensus_only,
-                last_commit: genesis_block,
-                last_vote: GENESIS,
-                last_proposal: GENESIS,
-                last_timeout: GENESIS,
                 leader_elector,
                 locked: QC::genesis(),
                 name,
@@ -111,12 +76,7 @@ impl Core {
                 timer: Timer::new(timeout_delay),
                 tx_output,
                 tx_proposer,
-                pending_blocks,
-                uncommitted_blocks,
-                uncommitted_qcs,
-                use_vote_aggregator,
                 vote_sender: SimpleSender::new(),
-                processing_blocks: HashMap::new(),
             }
             .run()
             .await
@@ -159,12 +119,6 @@ impl Core {
     }
 
     async fn store_block(&mut self, block: &Block) {
-        // Should only ever call this function with recent blocks.
-        assert!(block.round > self.last_commit.round);
-        // Store in-memory.
-        self.pending_blocks.insert(block.round, block.clone());
-        self.uncommitted_blocks
-            .insert(block.digest(), block.clone());
         // Write to disk
         let key = block.digest().to_vec();
         let value = bincode::serialize(block).expect("Failed to serialize block");
@@ -174,7 +128,6 @@ impl Core {
 
     async fn cleanup(&mut self, r: Round) {
         // Remove Prepare messages and stop trying to send proposals for all prior rounds.
-        self.aggregator.cleanup_prepares(&r);
         self.cleanup_proposals(r).await;
     }
 
@@ -193,8 +146,6 @@ impl Core {
                 .send(ProposerMessage::Propose())
                 .await
                 .expect("Failed to send message to proposer");
-            // Ensure we do not create an equivocal proposal.
-            self.last_proposal = self.round;
         }
     }
 

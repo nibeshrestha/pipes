@@ -5,4 +5,5 @@ benchmark/.parameters.json
 .db-*
 .committee.json
 .node-*?.json
-
+.idea
+Cargo.lock

@@ -132,7 +132,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     node_params = {
         'nodes': bench_params['nodes'],
         'meta_indep_size': 12500,
-        'meta_dep_size': 12500,
+        'meta_dep_size': 25000,
         'alpha': 0.95,
         'bandwidth': 12500000,
         'consensus_only': consensus_only,

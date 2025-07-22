@@ -1,2 +1,2 @@
 [workspace]
-members = [ "node", "store", "crypto", "worker", "consensus", "network", "config", "hotstuff"]
+members = [ "node", "store", "crypto", "worker", "consensus", "network", "config", "single_sender_beb"]

@@ -6,7 +6,7 @@ use config::Import as _;
 use config::{Committee, KeyPair, Parameters};
 use crypto::SignatureService;
 use env_logger::Env;
-use hotstuff::{Block, Consensus};
+use single_sender_beb::{Block, Consensus};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
 

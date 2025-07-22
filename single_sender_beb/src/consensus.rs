@@ -82,7 +82,6 @@ impl Consensus {
         Core::spawn(
             name,
             committee.clone(),
-            parameters.consensus_only,
             signature_service.clone(),
             store.clone(),
             leader_elector,
@@ -92,7 +91,6 @@ impl Consensus {
             rx_sync_core,
             tx_core_proposer,
             tx_output,
-            parameters.use_vote_aggregator,
         );
 
         // Spawn the block proposer.
