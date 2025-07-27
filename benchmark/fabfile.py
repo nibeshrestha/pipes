@@ -18,7 +18,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 60,
+        'duration': 20,
     }
 
     node_params = {
@@ -27,6 +27,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_dep_size': 12500,
         'alpha': 0.95,
         'bandwidth': 12500000,
+        'effective_bandwidth': 0.5,
         'client_rate': 20, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
@@ -119,13 +120,13 @@ def reset_filter(ctx):
 def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
-        'faults': 0,
+        'faults': 1,
         'nodes': 10,
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 120,
+        'duration': 60,
         'runs': 1,
     }
 
@@ -134,7 +135,8 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_indep_size': 12500,
         'meta_dep_size': 25000,
         'alpha': 0.95,
-        'bandwidth': 12500000,
+        'bandwidth': 12500000,  #12500000,
+        'effective_bandwidth': 0.90,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms
         'client_rate': 10, # in ms

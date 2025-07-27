@@ -92,6 +92,7 @@ pub struct Parameters {
     /// Bandwidth in Bps
     pub bandwidth: u64,
     pub nodes: u64,
+    pub effective_bandwidth: f32,
 }
 
 impl Default for Parameters {
@@ -113,6 +114,7 @@ impl Default for Parameters {
             alpha: 0.95,
             bandwidth: 12500000,
             nodes: 4,
+            effective_bandwidth: 1.0
         }
     }
 }

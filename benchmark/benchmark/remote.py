@@ -570,7 +570,7 @@ class Bench:
         debug=False, 
         consensus_only=False, 
         update=True,
-        run_clients=False
+        run_clients=False,
     ):
         hosts_and_connections = await self._try_connect_all(hosts)
         hosts_to_connections = { host: connection for host, connection in hosts_and_connections }

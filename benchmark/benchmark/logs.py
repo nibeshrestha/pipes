@@ -144,10 +144,10 @@ class LogParser:
         # Consensus block creation
         block_proposals = self._map_timestamps_to_digests(
             r'\[(.*Z) .* Created Block ([^ ]+): CMB\(.*\)', log)
-        
+
         block_receipts = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Received Block .* sample (\d+)', log)
-        
+                r'\[(.*Z) .* Received Block ([^ ]+): CMB\(.*\)', log)
+
         meta_receipts = self._map_timestamps_to_digests(
                 r'\[(.*Z) .* Received Dependent Meta (\d+)', log)
         
@@ -382,7 +382,7 @@ class LogParser:
             try:
                 latency.append(c-proposals[d])
             except:
-                print(d)
+                pass
         return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
     def _narwhal_throughput(self, start, commits: map):
@@ -475,7 +475,7 @@ class LogParser:
         
         bcl_mean_first, bcl_median_first, max_first = \
             self._latency(self.sample_receipts, self.meta_receipts)
-        bdl_mean_first, bdl_median_first, _ = self._latency(self.sample_receipts, self.block_receipts)
+        bdl_mean_first, bdl_median_first, _ = self._latency(self.block_proposals, self.block_receipts)
         # blk_mean_last, blk_median_last, _ = self._latency(self.sample_receipts, self.block_receipts)
         # bcl_mean_last, bcl_median_last, _ = \
             # self._latency(self.block_proposals, self.block_last_commits)

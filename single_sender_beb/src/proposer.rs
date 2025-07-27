@@ -60,6 +60,7 @@ impl Proposer {
         alpha: f32,
         bandwidth: u64,
         nodes: u64,
+        effective_bandwidth: f32,
     ) {
         tokio::spawn(async move {
             let meta_size = meta_indep_size + meta_dep_size;
@@ -72,7 +73,7 @@ impl Proposer {
                 in_progress: HashMap::new(),
                 cancel_handlers: HashMap::new(),
                 last_proposed: Block::genesis(),
-                payload_size,
+                payload_size: (payload_size as f32 * effective_bandwidth) as usize,
                 rx_core,
                 tx_proposer_core,
                 buffer: Vec::new(),
