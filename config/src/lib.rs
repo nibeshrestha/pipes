@@ -129,7 +129,7 @@ impl Parameters {
         }
         let meta_size = self.meta_indep_size + self.meta_dep_size;
         let payload_size: usize =
-            ((self.alpha * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
+            ((self.alpha * self.effective_bandwidth * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
 
         info!("Block frequency set to {} ms", self.timeout_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
