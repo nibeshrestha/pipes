@@ -48,7 +48,7 @@ class LogParser:
         # Parse the primaries logs.
         try:
             # Header should be included in the first 1000 characters.
-            header_len = 1000
+            header_len = 1100
             # Header is the same for all nodes.
             header = primaries[0][0:header_len]
             self.config = self._parse_config(header)
@@ -223,6 +223,8 @@ class LogParser:
             'alpha': 
                 search(r'Alpha set to (\d+.\d+)', header).group(1)
             ,
+            'effective_bandwidth':
+                search(r'Effective bandwidth set to (\d+.\d+)', header).group(1)
         }
         
     def _merge_maps(self, ms):
@@ -425,6 +427,7 @@ class LogParser:
         sync_retry_delay = self.config['sync_retry_delay']
         sync_retry_nodes = self.config['sync_retry_nodes']
         alpha = float(self.config['alpha'])
+        eff_bandwidth = float(self.config['effective_bandwidth'])
 
         if self.consensus_only:
             return (
@@ -437,6 +440,7 @@ class LogParser:
                 f' Dependent Meta size: {dep_meta_size:,} B\n'
                 f' Independent Meta size: {indep_meta_size:,} B\n'
                 f' Alpha: {alpha:.2f} \n'
+                f' Effective bandwidth: {eff_bandwidth:.2f} \n'
                 '\n'
             )
         else:
