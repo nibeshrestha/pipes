@@ -96,6 +96,7 @@ class Committee:
 
             json['authorities'][name] = {
                 # Corresponds to the determination of faulty nodes in primary_addresses.
+                'id': i,
                 'is_honest': i < num_authorities - faults,
                 'stake': 1,
                 'consensus': consensus_addr,

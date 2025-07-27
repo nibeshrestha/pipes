@@ -120,7 +120,7 @@ def reset_filter(ctx):
 def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
-        'faults': 1,
+        'faults': 0,
         'nodes': 10,
         'workers': 1,
         'collocate': True,
@@ -136,7 +136,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_dep_size': 25000,
         'alpha': 0.95,
         'bandwidth': 12500000,  #12500000,
-        'effective_bandwidth': 0.90,
+        'effective_bandwidth': 0.80,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms
         'client_rate': 10, # in ms

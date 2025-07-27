@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use clap::{crate_name, crate_version, App, AppSettings, ArgMatches, SubCommand};
 use config::Export as _;
 use config::Import as _;
-use config::{Committee, KeyPair, Parameters};
+use config::{Comm, Committee, KeyPair, Parameters};
 use crypto::SignatureService;
 use env_logger::Env;
 use single_sender_beb::{Block, Consensus};
@@ -81,8 +81,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     // Read the committee and node's keypair from file.
     let keypair = KeyPair::import(key_file).context("Failed to load the node's keypair")?;
     let name = keypair.name;
-    let committee =
-        Committee::import(committee_file).context("Failed to load the committee information")?;
+    let comm =
+        Comm::import(committee_file).context("Failed to load the committee information")?;
 
     // Load default parameters if none are specified.
     let parameters = match parameters_file {
@@ -97,6 +97,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
 
     // Make the data store.
     let store = Store::new(store_path).context("Failed to create a store")?;
+
+    let committee = Committee::new(&name, comm.authorities);
 
     // Channels the sequence of certificates.
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);

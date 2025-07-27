@@ -175,6 +175,7 @@ pub struct WorkerAddresses {
 
 #[derive(Clone, Deserialize)]
 pub struct Authority {
+    pub id: u32,
     /// The voting power of this authority.
     pub stake: Stake,
     /// The network addresses of the consensus protocol.
@@ -186,33 +187,32 @@ pub struct Authority {
 }
 
 #[derive(Clone, Deserialize)]
+pub struct Comm {
+    pub authorities: BTreeMap<PublicKey, Authority>,
+}
+impl Import for Comm {}
+
+
+#[derive(Clone, Deserialize)]
 pub struct Committee {
     pub authorities: BTreeMap<PublicKey, Authority>,
+    pub my_id: u32,
 }
 
 impl Import for Committee {}
 
 impl Committee {
-    pub fn new_for_test(info: Vec<(PublicKey, Stake, SocketAddr)>) -> Self {
-        Self {
-            authorities: info
-                .into_iter()
-                .map(|(name, stake, address)| {
-                    let authority = Authority {
-                        stake,
-                        consensus: ConsensusAddresses {
-                            consensus_to_consensus: address,
-                        },
-                        primary: PrimaryAddresses {
-                            primary_to_primary: address,
-                            worker_to_primary: address,
-                        },
-                        workers: HashMap::new(),
-                    };
-                    (name, authority)
-                })
-                .collect(),
-        }
+    pub fn new(
+        name: &PublicKey,
+        authorities: BTreeMap<PublicKey, Authority>,
+    ) -> Committee {
+        
+        let my_id = authorities.get(&name).unwrap().id;
+        let committee = Self {
+            authorities,
+            my_id
+        };
+        committee
     }
 
     /// Returns the number of authorities.
@@ -223,6 +223,10 @@ impl Committee {
     /// Return the stake of a specific authority.
     pub fn stake(&self, name: &PublicKey) -> Stake {
         self.authorities.get(&name).map_or_else(|| 0, |x| x.stake)
+    }
+
+    pub fn id(&self) -> u32 {
+        self.my_id
     }
 
     /// Returns the stake of all authorities except `myself`.
