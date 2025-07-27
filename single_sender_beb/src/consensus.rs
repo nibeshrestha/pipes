@@ -76,7 +76,7 @@ impl Consensus {
 
         // Make the leader election module.
         let leader_elector = LeaderElector::new(committee.clone());
-        let is_proposer = name == leader_elector.get_leader(1);
+        let is_proposer = committee.id() == 0;
 
         // Spawn the consensus core.
         Core::spawn(
