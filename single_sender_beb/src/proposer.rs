@@ -66,7 +66,7 @@ impl Proposer {
         tokio::spawn(async move {
             let meta_size = meta_indep_size + meta_dep_size;
             let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
-            let effective_payload = (payload_size as f32 * effective_bandwidth) as usize;
+            let effective_payload_size = (payload_size as f32 * effective_bandwidth) as usize;
             Self {
                 name,
                 consensus_only,
