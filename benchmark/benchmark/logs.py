@@ -477,8 +477,8 @@ class LogParser:
 
         total_received, blps_first, duration = self._throughput(first_proposal_time, self.meta_receipts)
         
-        bcl_mean_first, bcl_median_first, max_first = \
-            self._latency(self.sample_receipts, self.meta_receipts)
+        # bcl_mean_first, bcl_median_first, max_first = \
+        #     self._latency(self.sample_receipts, self.meta_receipts)
         bdl_mean_first, bdl_median_first, _ = self._latency(self.block_proposals, self.block_receipts)
         # blk_mean_last, blk_median_last, _ = self._latency(self.sample_receipts, self.block_receipts)
         # bcl_mean_last, bcl_median_last, _ = \
@@ -491,12 +491,12 @@ class LogParser:
             f'   Mean Latency: {round(bdl_mean_first):,} ms\n'
             f'   Median Latency: {round(bdl_median_first):,} ms\n'
             f'\n'
-            f' Meta Delivered:\n'
-            f'   Mean Latency: {round(bcl_mean_first):,} ms\n'
-            f'   Median Latency: {round(bcl_median_first):,} ms\n'
-            f'   Max Latency: {round(max_first):,} ms\n'
-            f'   BLPS: {round(blps_first):,} blocks/s\n'
-            f'   Total Blocks Received: {round(total_received):,}\n'
+            # f' Meta Delivered:\n'
+            # f'   Mean Latency: {round(bcl_mean_first):,} ms\n'
+            # f'   Median Latency: {round(bcl_median_first):,} ms\n'
+            # f'   Max Latency: {round(max_first):,} ms\n'
+            # f'   BLPS: {round(blps_first):,} blocks/s\n'
+            # f'   Total Blocks Received: {round(total_received):,}\n'
         )
     
     def _narwhal_output(self):
