@@ -116,28 +116,26 @@ impl Proposer {
 
         let mut propagation_time;
 
-        // if self.last_action {
-        //     propagation_time =
-        //         (self.meta_dep_size as u64 * (self.nodes - 1) * 1000) / self.bandwidth;
-        //     info!("Received sample txn {:?}", self.round + 1);
-        //     self.send_dependent_meta().await;
-        //     info!(
-        //         "Sent dep meta {:?} propogation time {:?}",
-        //         self.round, propagation_time
-        //     );
-        // } else {
+        if self.last_action {
             propagation_time =
-                // ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
-                //     / self.bandwidth;
-                ((self.payload_size ) as u64 * (self.nodes - 1) * 1000)
+                (self.meta_dep_size as u64 * (self.nodes - 1) * 1000) / self.bandwidth;
+            info!("Received sample txn {:?}", self.round + 1);
+            self.send_dependent_meta().await;
+            info!(
+                "Sent dep meta {:?} propogation time {:?}",
+                self.round, propagation_time
+            );
+        } else {
+            propagation_time =
+                ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
                     / self.bandwidth;
             self.propose().await;
             info!("propogation time {:?}", propagation_time);
-        // }
+        }
 
         self.last_action = !self.last_action;
         // self.timer.reset();
-        self.timer.set_timer(1000);
+        self.timer.set_timer(propagation_time);
     }
 
     async fn send_proposal(&mut self, proposal: Proposal) {
@@ -199,10 +197,8 @@ impl Proposer {
     async fn make_proposal(&mut self) -> Proposal {
         let mut payload;
 
-        payload = vec![0u8; self.payload_size - 8];
-        let mut meta_indep = vec![0u8; 0];
-                // let mut meta_indep = vec![0u8; self.meta_indep_size];
-
+        payload = vec![0u8; self.effective_payload_size - 8];
+        let mut meta_indep = vec![0u8; self.meta_indep_size];
 
         self.round += 1;
         let sample_tx: u64 = self.round;
