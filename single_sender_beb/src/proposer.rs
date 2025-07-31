@@ -116,24 +116,13 @@ impl Proposer {
 
         let mut propagation_time;
 
-        // if self.last_action {
-        //     propagation_time =
-        //         (self.meta_dep_size as u64 * (self.nodes - 1) * 1000) / self.bandwidth;
-        //     info!("Received sample txn {:?}", self.round + 1);
-        //     self.send_dependent_meta().await;
-        //     info!(
-        //         "Sent dep meta {:?} propogation time {:?}",
-        //         self.round, propagation_time
-        //     );
-        // } else {
-            propagation_time =
-                // ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
-                //     / self.bandwidth;
-                ((self.payload_size ) as u64 * (self.nodes - 1) * 1000)
-                    / self.bandwidth;
-            self.propose().await;
-            info!("propogation time {:?}", propagation_time);
-        // }
+        propagation_time =
+            // ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
+            //     / self.bandwidth;
+            ((self.payload_size ) as u64 * (self.nodes - 1) * 1000)
+                / self.bandwidth;
+        self.propose().await;
+        info!("propogation time {:?}", propagation_time);
 
         self.last_action = !self.last_action;
         // self.timer.reset();
@@ -142,6 +131,7 @@ impl Proposer {
 
     async fn send_proposal(&mut self, proposal: Proposal) {
         info!("Created {:?}", proposal);
+        
         let (names, addresses): (Vec<_>, _) = self
             .committee
             .others_consensus(&self.name)
@@ -156,6 +146,8 @@ impl Proposer {
 
         let message = bincode::serialize(&ConsensusMessage::Propose(proposal))
             .expect("Failed to serialize block");
+        
+        info!("Size is {}B", message.len());
 
         let handles = self
             .network
