@@ -11,7 +11,7 @@
     "repo": {
         "name": "pipes",
         "url": "https://github.com/nibeshrestha/pipes.git",
-        "branch": "best_effort_broadcast"
+        "branch": "test_fixed_data_latency"
     },
     "instances": {
         "machine_type": "e2-standard-4",

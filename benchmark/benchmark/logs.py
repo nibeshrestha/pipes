@@ -71,7 +71,9 @@ class LogParser:
         # committed_blocks = [x.items() for x in block_commits]
         self.block_proposals = self._representative_results_by_digest([x.items() for x in block_proposals], False)
         self.meta_receipts = self._representative_results_by_digest([x.items() for x in meta_receipts], False)
-        self.block_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], False)
+        self.block_first_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], True)
+        self.block_median_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], False)
+
         # self.block_first_commits = self._representative_results_by_digest(committed_blocks, True)
         # self.block_last_commits = self._representative_results_by_digest(committed_blocks, False)
         self.sample_receipts = self._representative_results_by_digest([x.items() for x in sample_receipts], False)
@@ -100,11 +102,12 @@ class LogParser:
             sorted_timestamps = sorted(merged[digest])
             # Consider the first 2f+1 readings honest
             # honest_timestamps = sorted_timestamps[0:2*f+1]
-
             if keep_least:
                 filtered[digest] = sorted_timestamps[0]
             else:
-                filtered[digest] = sorted_timestamps[-1]
+                # filtered[digest] = sorted_timestamps[-1]
+                filtered[digest] = median(sorted_timestamps)
+
         
         return filtered
 
@@ -385,6 +388,8 @@ class LogParser:
                 latency.append(c-proposals[d])
             except:
                 pass
+        latency = latency[30:-5]
+        print(latency)
         return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
     def _narwhal_throughput(self, start, commits: map):
@@ -479,7 +484,8 @@ class LogParser:
         
         # bcl_mean_first, bcl_median_first, max_first = \
         #     self._latency(self.sample_receipts, self.meta_receipts)
-        bdl_mean_first, bdl_median_first, _ = self._latency(self.block_proposals, self.block_receipts)
+        bdl_mean_first, bdl_median_first, _ = self._latency(self.block_proposals, self.block_first_receipts)
+        bdl_mean_last, bdl_median_last, _ = self._latency(self.block_proposals, self.block_median_receipts)
         # blk_mean_last, blk_median_last, _ = self._latency(self.sample_receipts, self.block_receipts)
         # bcl_mean_last, bcl_median_last, _ = \
             # self._latency(self.block_proposals, self.block_last_commits)
@@ -487,9 +493,13 @@ class LogParser:
         return (
             f' Execution time: {round(duration):,} s\n'
             f'\n'
-            f' Block Delivered:\n'
+            f' Block First Delivered:\n'
             f'   Mean Latency: {round(bdl_mean_first):,} ms\n'
             f'   Median Latency: {round(bdl_median_first):,} ms\n'
+            f'\n'
+            f' Block Median Delivered:\n'
+            f'   Mean Latency: {round(bdl_mean_last):,} ms\n'
+            f'   Median Latency: {round(bdl_median_last):,} ms\n'
             f'\n'
             # f' Meta Delivered:\n'
             # f'   Mean Latency: {round(bcl_mean_first):,} ms\n'
@@ -630,3 +640,20 @@ class LogParser:
                     workers += [f.read()]
 
         return cls(clients, primaries, workers, faults=faults, consensus_only=consensus_only, debug=debug)
+
+import numpy as np
+
+def remove_outliers(x, outlierConstant = 1.5):
+    a = np.array(x)
+    upper_quartile = np.percentile(a, 75)
+    lower_quartile = np.percentile(a, 25)
+    IQR = (upper_quartile - lower_quartile) * outlierConstant
+    quartileSet = (lower_quartile - IQR, upper_quartile + IQR)
+    resultList = []
+    removedList = []
+    for y in a.tolist():
+        if y >= quartileSet[0] and y <= quartileSet[1]:
+            resultList.append(y)
+        else:
+            removedList.append(y)
+    return (resultList, removedList)

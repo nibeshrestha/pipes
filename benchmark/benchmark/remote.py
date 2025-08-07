@@ -296,13 +296,14 @@ class Bench:
     
     async def _set_tc_filter(self):
         hosts = self.manager.hosts(flat=True)
+        hosts= [hosts[0]]
         hosts_and_connections = await self._try_connect_all(hosts)
         hosts_to_connections = { h: c for h, c in hosts_and_connections }
 
         Print.info('Setting TC filter...')
         cmd = [
             'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
-            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit ceil 100mbit',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 1000mbit ceil 1000mbit',
             'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms limit 10000',
         ]
 
