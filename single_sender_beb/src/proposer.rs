@@ -217,10 +217,10 @@ impl Proposer {
         // Generate a new Proposal.
         let proposal = self.make_proposal().await;
         // Send the Proposal to the Core for local processing.
-        self.tx_proposer_core
-            .send(proposal.clone())
-            .await
-            .expect("Failed to send block");
+        // self.tx_proposer_core
+        //     .send(proposal.clone())
+        //     .await
+        //     .expect("Failed to send block");
         // Broadcast the Proposal.
         self.send_proposal(proposal).await;
     }
