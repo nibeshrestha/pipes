@@ -107,7 +107,8 @@ impl Consensus {
             parameters.alpha,
             parameters.bandwidth,
             parameters.nodes,
-            parameters.effective_bandwidth
+            parameters.meta_prop_time,
+            parameters.block_prop_time,
         );
     }
 }

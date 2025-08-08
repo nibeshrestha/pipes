@@ -28,6 +28,8 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'alpha': 0.95,
         'bandwidth': 12500000,
         'effective_bandwidth': 0.5,
+        'meta_prop_time': 100,
+        'block_prop_time': 200,
         'client_rate': 20, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
@@ -136,6 +138,8 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_dep_size': 25000,
         'alpha': 0.95,
         'bandwidth': 12500000,  #12500000,
+        'meta_prop_time': 100,
+        'block_prop_time': 200, 
         'effective_bandwidth': 0.80,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms

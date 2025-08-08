@@ -27,7 +27,6 @@ pub struct Proposer {
     cancel_handlers: HashMap<Round, Vec<CancelHandler>>,
     last_proposed: Block,
     payload_size: usize,
-    effective_payload_size: usize,
     rx_core: Receiver<ProposerMessage>,
     tx_proposer_core: Sender<Proposal>,
     buffer: Vec<u64>,
@@ -45,6 +44,8 @@ pub struct Proposer {
     /// false implies block proposed, true implies metadata sent
     last_action: bool,
     nodes: u64,
+    meta_prop_time: u64,
+    block_prop_time: u64,
 }
 
 impl Proposer {
@@ -61,12 +62,13 @@ impl Proposer {
         alpha: f32,
         bandwidth: u64,
         nodes: u64,
-        effective_bandwidth: f32,
+        meta_prop_time: u64,
+        block_prop_time: u64,
     ) {
         tokio::spawn(async move {
             let meta_size = meta_indep_size + meta_dep_size;
             let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
-            let effective_payload_size = (payload_size as f32 * effective_bandwidth) as usize;
+
             Self {
                 name,
                 consensus_only,
@@ -75,7 +77,6 @@ impl Proposer {
                 cancel_handlers: HashMap::new(),
                 last_proposed: Block::genesis(),
                 payload_size: payload_size,
-                effective_payload_size,
                 rx_core,
                 tx_proposer_core,
                 buffer: Vec::new(),
@@ -91,6 +92,8 @@ impl Proposer {
                 is_proposer,
                 last_action: false,
                 nodes,
+                meta_prop_time,
+                block_prop_time,
             }
             .run()
             .await;
@@ -117,25 +120,15 @@ impl Proposer {
         let mut propagation_time;
 
         if self.last_action {
-            propagation_time =
-                (self.meta_dep_size as u64 * (self.nodes - 1) * 1000) / self.bandwidth;
             info!("Received sample txn {:?}", self.round + 1);
+            self.timer.set_timer(self.meta_prop_time);
             self.send_dependent_meta().await;
-            info!(
-                "Sent dep meta {:?} propogation time {:?}",
-                self.round, propagation_time
-            );
         } else {
-            propagation_time =
-                ((self.payload_size + self.meta_indep_size) as u64 * (self.nodes - 1) * 1000)
-                    / self.bandwidth;
+            self.timer.set_timer(self.block_prop_time);
             self.propose().await;
-            info!("propogation time {:?}", propagation_time);
         }
 
         self.last_action = !self.last_action;
-        // self.timer.reset();
-        self.timer.set_timer(propagation_time);
     }
 
     async fn send_proposal(&mut self, proposal: Proposal) {
@@ -154,6 +147,8 @@ impl Proposer {
 
         let message = bincode::serialize(&ConsensusMessage::Propose(proposal))
             .expect("Failed to serialize block");
+
+        info!("Proposal Size is {}B", message.len());
 
         let handles = self
             .network
@@ -187,6 +182,8 @@ impl Proposer {
         let message = bincode::serialize(&ConsensusMessage::DependentMeta(m))
             .expect("Failed to serialize block");
 
+        info!("Metadata Size is {}B", message.len());
+
         let handles = self
             .network
             .broadcast(addresses, Bytes::from(message))
@@ -197,7 +194,7 @@ impl Proposer {
     async fn make_proposal(&mut self) -> Proposal {
         let mut payload;
 
-        payload = vec![0u8; self.effective_payload_size - 8];
+        payload = vec![0u8; self.payload_size - 8];
         let mut meta_indep = vec![0u8; self.meta_indep_size];
 
         self.round += 1;

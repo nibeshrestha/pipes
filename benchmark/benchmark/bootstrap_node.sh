@@ -17,6 +17,8 @@ REPO_URL="$2"
 REPO_NAME="$3"
 
 FUNC="install"
+IFACE="ens4"
+INITCWND=99
 
 # Backup limits.conf
 LIMITS="/etc/security/limits.conf"
@@ -35,8 +37,21 @@ root hard     nofile         65535\n" | sudo tee "$LIMITS" >/dev/null
 sudo sysctl -w fs.nr_open=65535
 sudo sysctl -w net.core.somaxconn=65535
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
-sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 33554432"
-sudo sysctl -w net.ipv4.tcp_wmem="4096 65535 33554432"
+sudo sysctl -w net.core.wmem_max=4194304
+sudo sysctl -w net.core.rmem_max=12582912
+sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 4194304"
+sudo sysctl -w net.ipv4.tcp_wmem="4096 87380 4194304"
+sudo sysctl -p
+
+GATEWAY=$(ip route | awk -v iface="$IFACE" '$1 == "default" && $0 ~ iface {print $3; exit}')
+
+EXISTING_ROUTE=$(ip route show default | grep "via $GATEWAY" | grep "dev $IFACE")
+
+if echo "$EXISTING_ROUTE" | grep -q "initcwnd"; then
+    sudo ip route change default via "$GATEWAY" dev "$IFACE" initcwnd "$INITCWND"
+else
+    sudo ip route replace default via "$GATEWAY" dev "$IFACE" initcwnd "$INITCWND"
+fi
 
 # TODO: Unsure if these are necessary.
 echo "ulimit -n 65535" >> /home/ubuntu/.bashrc
