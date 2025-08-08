@@ -117,8 +117,6 @@ impl Proposer {
     async fn client_reset(&mut self) {
         self.buffer.push(self.counter);
 
-        let mut propagation_time;
-
         if self.last_action {
             info!("Received sample txn {:?}", self.round + 1);
             self.timer.set_timer(self.meta_prop_time);
