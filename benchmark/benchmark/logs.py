@@ -48,7 +48,7 @@ class LogParser:
         # Parse the primaries logs.
         try:
             # Header should be included in the first 1000 characters.
-            header_len = 1100
+            header_len = 1200
             # Header is the same for all nodes.
             header = primaries[0][0:header_len]
             self.config = self._parse_config(header)
@@ -223,8 +223,11 @@ class LogParser:
             'alpha': 
                 search(r'Alpha set to (\d+.\d+)', header).group(1)
             ,
-            'effective_bandwidth':
-                search(r'Effective bandwidth set to (\d+.\d+)', header).group(1)
+            'meta_prop_time':
+                search(r'MetaPropTime set to (\d+)', header).group(1)
+            ,
+            'block_prop_time':
+                search(r'BlockPropTime set to (\d+)', header).group(1)
         }
         
     def _merge_maps(self, ms):
@@ -237,7 +240,7 @@ class LogParser:
                 for l in m[k].keys():
                     merged[k][l] = m[k][l]
         return merged
-                
+
     def _log_debug_stats(self):
         print('Debug Stats:')
         
@@ -268,7 +271,7 @@ class LogParser:
             'min': mean(mins),
             'max': mean(maxs)
         }
-        
+
         print('Block receipt delay (ms): ' + str(block_receipt_stats))
 
         vote_creations = {}
@@ -427,7 +430,8 @@ class LogParser:
         sync_retry_delay = self.config['sync_retry_delay']
         sync_retry_nodes = self.config['sync_retry_nodes']
         alpha = float(self.config['alpha'])
-        eff_bandwidth = float(self.config['effective_bandwidth'])
+        meta_prop_time = int(self.config['meta_prop_time'])
+        block_prop_time = int(self.config['block_prop_time'])
 
         if self.consensus_only:
             return (
@@ -440,7 +444,8 @@ class LogParser:
                 f' Dependent Meta size: {dep_meta_size:,} B\n'
                 f' Independent Meta size: {indep_meta_size:,} B\n'
                 f' Alpha: {alpha:.2f} \n'
-                f' Effective bandwidth: {eff_bandwidth:.2f} \n'
+                f' Meta Prop Time: {meta_prop_time:,} ms\n'
+                f' Block Prop Time: {block_prop_time:,} ms\n'
                 '\n'
             )
         else:

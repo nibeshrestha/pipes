@@ -144,7 +144,8 @@ impl Parameters {
         info!("Dep meta size set to {} B ", self.meta_dep_size);
         info!("Indep meta size set to {} B ", self.meta_indep_size);
         info!("Alpha set to {}", self.alpha);
-        info!("Effective bandwidth set to {}", self.effective_bandwidth);
+        info!("MetaPropTime set to {}", self.meta_prop_time);
+        info!("BlockPropTime set to {}", self.block_prop_time);
         info!("Bandwidth set to {} Bps", self.bandwidth);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
         info!("Header size set to {} B", self.header_size);
