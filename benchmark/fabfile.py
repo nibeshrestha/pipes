@@ -26,7 +26,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_indep_size': 12500,
         'meta_dep_size': 12500,
         'alpha': 0.95,
-        'bandwidth': 12500000,
+        'bandwidth': 125000000,
         'effective_bandwidth': 0.5,
         'client_rate': 20, # in ms
         'consensus_only': consensus_only,

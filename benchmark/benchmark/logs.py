@@ -4,8 +4,10 @@ from glob import glob
 from os.path import join
 from re import findall, search
 from statistics import mean, median
-
+import json
 from benchmark.utils import Print
+
+from collections import OrderedDict
 
 
 class ParseError(Exception):
@@ -71,12 +73,15 @@ class LogParser:
         # committed_blocks = [x.items() for x in block_commits]
         self.block_proposals = self._representative_results_by_digest([x.items() for x in block_proposals], False)
         self.meta_receipts = self._representative_results_by_digest([x.items() for x in meta_receipts], False)
-        self.block_first_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], True)
+        self.block_first_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], True, True)
         self.block_median_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], False)
 
         # self.block_first_commits = self._representative_results_by_digest(committed_blocks, True)
         # self.block_last_commits = self._representative_results_by_digest(committed_blocks, False)
         self.sample_receipts = self._representative_results_by_digest([x.items() for x in sample_receipts], False)
+
+        ordered_proposals = self._get_ordered_block_proposals([x.items() for x in block_proposals])
+        self._local_latency(ordered_proposals, block_receipts)
 
     # Filters the given list of results for each node (where each result
     # set is itself a list of (digest, timestamp) pairs), keeping the 
@@ -84,7 +89,40 @@ class LogParser:
     # timestamp is the least in keep_least is true, otherwise it is the
     # 2f+1th greatest (i.e. the greatest honest timestamp -- we assume that
     # Byzantine nodes want to report high values).
-    def _representative_results_by_digest(self, input, keep_least):
+    
+    def _get_ordered_block_proposals(self, proposals):
+        values = []
+        for node_result in proposals:
+            for digest, timestamp in node_result:
+                values.append((digest, timestamp))
+        return sorted(values, key=lambda x: x[1])
+    
+    def _local_latency(self, proposals, receipts):
+        merged = {}
+        # Collect all results by digest
+        for node_results in receipts:
+            for digest, timestamp in node_results.items():
+                if not digest in merged:
+                    merged[digest] = [timestamp]
+                else:
+                    merged[digest].append(timestamp)
+        
+        # result = OrderedDict()
+        result = []
+        for digest, timestamp in proposals:
+            try:
+                v = merged[digest]
+                sorted_timestamps = sorted(v)
+                lat = [l - timestamp for l in sorted_timestamps]
+                # result[digest] = [lat[0] * 1000, lat[1] * 1000, median(lat) * 1000]
+                result.append((lat[0] * 1000, lat[-1] * 1000, median(lat) * 1000))
+            except:
+                pass
+            
+        print("Result is ", result)
+        return result
+
+    def _representative_results_by_digest(self, input, keep_least, display=False):
         merged = {}
         filtered = {}
         f = (self.committee_size - 1) // 3
@@ -107,10 +145,9 @@ class LogParser:
             else:
                 # filtered[digest] = sorted_timestamps[-1]
                 filtered[digest] = median(sorted_timestamps)
-
         
         return filtered
-
+    
     def _parse_clients(self, log):
         if search(r'Error', log) is not None:
             raise Exception('Client(s) panicked')
@@ -388,8 +425,8 @@ class LogParser:
                 latency.append(c-proposals[d])
             except:
                 pass
-        latency = latency[30:-5]
-        print(latency)
+        # latency = latency[30:-5]
+        # print(latency)
         return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
     def _narwhal_throughput(self, start, commits: map):

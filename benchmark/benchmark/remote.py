@@ -303,7 +303,7 @@ class Bench:
         Print.info('Setting TC filter...')
         cmd = [
             'sudo tc qdisc add dev ens4 root handle 1: htb default 10',
-            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 1000mbit ceil 1000mbit',
+            'sudo tc class add dev ens4 parent 1: classid 1:10 htb rate 100mbit ceil 100mbit',
             'sudo tc qdisc add dev ens4 parent 1:10 handle 10: netem delay 100ms limit 10000',
         ]
 
