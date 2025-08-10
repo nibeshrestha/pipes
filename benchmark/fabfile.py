@@ -119,7 +119,7 @@ def reset_filter(ctx):
         Print.error(e)
 
 @task
-def remote(ctx, debug=False, consensus_only=True, aggregate=False):
+def remote(ctx, mpt=25, bpt=660, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
@@ -128,7 +128,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 60,
+        'duration': 120,
         'runs': 1,
     }
 
@@ -138,8 +138,8 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_dep_size': 25000,
         'alpha': 0.95,
         'bandwidth': 12500000,  #12500000,
-        'meta_prop_time': 100,
-        'block_prop_time': 200, 
+        'meta_prop_time': mpt,
+        'block_prop_time': bpt, 
         'effective_bandwidth': 0.80,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms

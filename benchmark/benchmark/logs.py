@@ -74,14 +74,23 @@ class LogParser:
         self.block_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], False)
         # self.block_first_commits = self._representative_results_by_digest(committed_blocks, True)
         # self.block_last_commits = self._representative_results_by_digest(committed_blocks, False)
-        self.sample_receipts = self._representative_results_by_digest([x.items() for x in sample_receipts], False)
+        self.sample_receipts = self._get_ordered_block_proposals([x.items() for x in sample_receipts])
 
+        self.ordered_proposals = self._get_ordered_block_proposals([x.items() for x in block_proposals]) 
     # Filters the given list of results for each node (where each result
     # set is itself a list of (digest, timestamp) pairs), keeping the 
     # representative timestamp for each digest in the result set. This
     # timestamp is the least in keep_least is true, otherwise it is the
     # 2f+1th greatest (i.e. the greatest honest timestamp -- we assume that
     # Byzantine nodes want to report high values).
+
+    def _get_ordered_block_proposals(self, proposals):
+        values = []
+        for node_result in proposals:
+            for digest, timestamp in node_result:
+                values.append((digest, timestamp))
+        return sorted(values, key=lambda x: x[1])
+    
     def _representative_results_by_digest(self, input, keep_least):
         merged = {}
         filtered = {}
@@ -379,10 +388,20 @@ class LogParser:
     def _to_posix(self, string):
         x = datetime.fromisoformat(string.replace('Z', '+00:00'))
         return datetime.timestamp(x)
+    
+    def _latency_two(self, proposals, commits: map):
+        latency = []
+        for d, t in proposals:
+            try:
+                latency.append(commits[d]-t)
+            except Exception as e:
+                print(e)
+        latency = latency[20:]
+        return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
     def _latency(self, proposals, commits: map):
         latency = []
-       
+
         for d, c in commits.items():
             try:
                 latency.append(c-proposals[d])
@@ -483,8 +502,8 @@ class LogParser:
         total_received, blps_first, duration = self._throughput(first_proposal_time, self.meta_receipts)
         
         bcl_mean_first, bcl_median_first, max_first = \
-            self._latency(self.sample_receipts, self.meta_receipts)
-        bdl_mean_first, bdl_median_first, _ = self._latency(self.block_proposals, self.block_receipts)
+            self._latency_two(self.sample_receipts, self.meta_receipts)
+        bdl_mean_first, bdl_median_first, _ = self._latency_two(self.ordered_proposals, self.block_receipts)
         # blk_mean_last, blk_median_last, _ = self._latency(self.sample_receipts, self.block_receipts)
         # bcl_mean_last, bcl_median_last, _ = \
             # self._latency(self.block_proposals, self.block_last_commits)
