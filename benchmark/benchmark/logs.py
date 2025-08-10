@@ -89,7 +89,8 @@ class LogParser:
         for node_result in proposals:
             for digest, timestamp in node_result:
                 values.append((digest, timestamp))
-        return sorted(values, key=lambda x: x[1])
+        result = sorted(values, key=lambda x: x[1])
+        return result[20:]
     
     def _representative_results_by_digest(self, input, keep_least):
         merged = {}
@@ -396,7 +397,7 @@ class LogParser:
                 latency.append(commits[d]-t)
             except Exception as e:
                 print(e)
-        latency = latency[20:]
+        print(latency)
         return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
     def _latency(self, proposals, commits: map):

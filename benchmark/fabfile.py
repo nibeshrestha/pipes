@@ -18,13 +18,13 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 20,
+        'duration': 30,
     }
 
     node_params = {
         'nodes': bench_params['nodes'],
         'meta_indep_size': 12500,
-        'meta_dep_size': 12500,
+        'meta_dep_size': 25000,
         'alpha': 0.95,
         'bandwidth': 12500000,
         'effective_bandwidth': 0.5,

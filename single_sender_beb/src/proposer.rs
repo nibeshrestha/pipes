@@ -115,15 +115,19 @@ impl Proposer {
     }
 
     async fn client_reset(&mut self) {
-        self.buffer.push(self.counter);
-
-        if self.last_action {
-            info!("Received sample txn {:?}", self.round + 1);
-            self.timer.set_timer(self.meta_prop_time);
-            self.send_dependent_meta().await;
-        } else {
-            self.timer.set_timer(self.block_prop_time);
+        self.counter += 1;
+        if self.counter < 20 {
+            self.timer.set_timer(1000);
             self.propose().await;
+        } else {
+            if self.last_action {
+                info!("Received sample txn {:?}", self.round + 1);
+                self.timer.set_timer(self.meta_prop_time);
+                self.send_dependent_meta().await;
+            } else {
+                self.timer.set_timer(self.block_prop_time);
+                self.propose().await;
+            }
         }
 
         self.last_action = !self.last_action;

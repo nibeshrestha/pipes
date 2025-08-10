@@ -81,8 +81,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     // Read the committee and node's keypair from file.
     let keypair = KeyPair::import(key_file).context("Failed to load the node's keypair")?;
     let name = keypair.name;
-    let comm =
-        Comm::import(committee_file).context("Failed to load the committee information")?;
+    let comm = Comm::import(committee_file).context("Failed to load the committee information")?;
 
     // Load default parameters if none are specified.
     let parameters = match parameters_file {

@@ -117,7 +117,7 @@ impl Default for Parameters {
             bandwidth: 12500000,
             nodes: 4,
             effective_bandwidth: 1.0,
-            meta_prop_time:100,
+            meta_prop_time: 100,
             block_prop_time: 100,
         }
     }
@@ -132,8 +132,8 @@ impl Parameters {
             info!("Running consensus in isolation");
         }
         let meta_size = self.meta_indep_size + self.meta_dep_size;
-        let payload_size: usize =
-            ((self.alpha * self.effective_bandwidth * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
+        let payload_size: usize = ((self.alpha * self.effective_bandwidth * meta_size as f32)
+            / (1 as f32 - self.alpha)) as usize;
 
         info!("Block frequency set to {} ms", self.timeout_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
@@ -197,7 +197,6 @@ pub struct Comm {
 }
 impl Import for Comm {}
 
-
 #[derive(Clone, Deserialize)]
 pub struct Committee {
     pub authorities: BTreeMap<PublicKey, Authority>,
@@ -207,16 +206,9 @@ pub struct Committee {
 impl Import for Committee {}
 
 impl Committee {
-    pub fn new(
-        name: &PublicKey,
-        authorities: BTreeMap<PublicKey, Authority>,
-    ) -> Committee {
-        
+    pub fn new(name: &PublicKey, authorities: BTreeMap<PublicKey, Authority>) -> Committee {
         let my_id = authorities.get(&name).unwrap().id;
-        let committee = Self {
-            authorities,
-            my_id
-        };
+        let committee = Self { authorities, my_id };
         committee
     }
 
