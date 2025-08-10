@@ -93,6 +93,7 @@ pub struct Parameters {
     pub bandwidth: u64,
     pub nodes: u64,
     pub effective_bandwidth: f32,
+    pub payload_size: usize,
 }
 
 impl Default for Parameters {
@@ -114,7 +115,8 @@ impl Default for Parameters {
             alpha: 0.95,
             bandwidth: 12500000,
             nodes: 4,
-            effective_bandwidth: 1.0
+            effective_bandwidth: 1.0,
+            payload_size: 0,
         }
     }
 }
@@ -127,15 +129,15 @@ impl Parameters {
         if self.consensus_only {
             info!("Running consensus in isolation");
         }
-        let meta_size = self.meta_indep_size + self.meta_dep_size;
-        let payload_size: usize = ((self.alpha * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
+        // let meta_size = self.meta_indep_size + self.meta_dep_size;
+        // let payload_size: usize = ((self.alpha * meta_size as f32) / (1 as f32 - self.alpha)) as usize;
 
         info!("Block frequency set to {} ms", self.timeout_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
         info!("Batch size set to {} B", self.batch_size);
-        info!("Block size set to {} B", payload_size);
+        info!("Block size set to {} B", self.payload_size);
         info!("Dep meta size set to {} B ", self.meta_dep_size);
         info!("Indep meta size set to {} B ", self.meta_indep_size);
         info!("Alpha set to {}", self.alpha);

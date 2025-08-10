@@ -100,6 +100,7 @@ impl Consensus {
             committee.clone(),
             parameters.meta_indep_size,
             parameters.meta_dep_size,
+            parameters.payload_size,
             /* rx_message */ rx_core_proposer,
             tx_proposer_core,
             parameters.client_rate,

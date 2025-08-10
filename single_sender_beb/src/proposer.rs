@@ -27,7 +27,6 @@ pub struct Proposer {
     cancel_handlers: HashMap<Round, Vec<CancelHandler>>,
     last_proposed: Block,
     payload_size: usize,
-    effective_payload_size: usize,
     rx_core: Receiver<ProposerMessage>,
     tx_proposer_core: Sender<Proposal>,
     buffer: Vec<u64>,
@@ -54,6 +53,7 @@ impl Proposer {
         committee: Committee,
         meta_indep_size: usize,
         meta_dep_size: usize,
+        payload_size: usize,
         rx_core: Receiver<ProposerMessage>,
         tx_proposer_core: Sender<Proposal>,
         client_rate: u64,
@@ -64,9 +64,8 @@ impl Proposer {
         effective_bandwidth: f32,
     ) {
         tokio::spawn(async move {
-            let meta_size = meta_indep_size + meta_dep_size;
-            let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
-            let effective_payload_size = (payload_size as f32 * effective_bandwidth) as usize;
+            // let meta_size = meta_indep_size + meta_dep_size;
+            // let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
             Self {
                 name,
                 consensus_only,
@@ -74,8 +73,7 @@ impl Proposer {
                 in_progress: HashMap::new(),
                 cancel_handlers: HashMap::new(),
                 last_proposed: Block::genesis(),
-                payload_size: payload_size,
-                effective_payload_size,
+                payload_size,
                 rx_core,
                 tx_proposer_core,
                 buffer: Vec::new(),
