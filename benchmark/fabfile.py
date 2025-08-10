@@ -119,7 +119,7 @@ def reset_filter(ctx):
         Print.error(e)
 
 @task
-def remote(ctx, mpt=25, bpt=660, debug=False, consensus_only=True, aggregate=False):
+def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
