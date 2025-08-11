@@ -41,6 +41,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'sync_retry_delay': 5_000,  # ms
         'sync_retry_nodes': 3,  # number of nodes
         'max_header_delay': 200,  # ms
+        'prime_prop_time': 200,
     }
     try:
         ret = LocalBench(bench_params, node_params).run(debug, consensus_only)
@@ -140,6 +141,7 @@ def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=Fal
         'bandwidth': 12500000,  #12500000,
         'meta_prop_time': mpt,
         'block_prop_time': bpt, 
+        'prime_prop_time': 2000,
         'effective_bandwidth': 0.80,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms

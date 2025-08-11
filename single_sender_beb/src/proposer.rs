@@ -46,6 +46,7 @@ pub struct Proposer {
     nodes: u64,
     meta_prop_time: u64,
     block_prop_time: u64,
+    prime_prop_time: u64,
 }
 
 impl Proposer {
@@ -64,6 +65,7 @@ impl Proposer {
         nodes: u64,
         meta_prop_time: u64,
         block_prop_time: u64,
+        prime_prop_time: u64,
     ) {
         tokio::spawn(async move {
             let meta_size = meta_indep_size + meta_dep_size;
@@ -94,6 +96,7 @@ impl Proposer {
                 nodes,
                 meta_prop_time,
                 block_prop_time,
+                prime_prop_time,
             }
             .run()
             .await;
@@ -117,7 +120,7 @@ impl Proposer {
     async fn client_reset(&mut self) {
         self.counter += 1;
         if self.counter < 20 {
-            self.timer.set_timer(1000);
+            self.timer.set_timer(self.prime_prop_time);
             self.propose().await;
         } else {
             if self.last_action {

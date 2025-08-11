@@ -95,6 +95,7 @@ pub struct Parameters {
     pub effective_bandwidth: f32,
     pub meta_prop_time: u64,
     pub block_prop_time: u64,
+    pub prime_prop_time: u64,
 }
 
 impl Default for Parameters {
@@ -119,6 +120,7 @@ impl Default for Parameters {
             effective_bandwidth: 1.0,
             meta_prop_time: 100,
             block_prop_time: 100,
+            prime_prop_time: 1000,
         }
     }
 }

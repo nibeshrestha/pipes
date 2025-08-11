@@ -109,6 +109,7 @@ impl Consensus {
             parameters.nodes,
             parameters.meta_prop_time,
             parameters.block_prop_time,
+            parameters.prime_prop_time,
         );
     }
 }
