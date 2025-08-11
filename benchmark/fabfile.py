@@ -26,6 +26,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_indep_size': 12500,
         'meta_dep_size': 12500,
         'payload_size': 25000,
+        'prop_time': 1100,
         'alpha': 0.95,
         'bandwidth': 125000000,
         'effective_bandwidth': 0.5,
@@ -122,7 +123,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
-        'nodes': 10,
+        'nodes': 20,
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
@@ -136,6 +137,7 @@ def remote(ctx, debug=False, consensus_only=True, aggregate=False):
         'meta_indep_size': 12500,
         'meta_dep_size': 25000,
         'alpha': 0.95,
+        'prop_time': 1500,
         'payload_size': 25000,
         'bandwidth': 12500000,  #12500000,
         'effective_bandwidth': 0.70,

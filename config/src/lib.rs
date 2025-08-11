@@ -94,6 +94,7 @@ pub struct Parameters {
     pub nodes: u64,
     pub effective_bandwidth: f32,
     pub payload_size: usize,
+    pub prop_time: u64,
 }
 
 impl Default for Parameters {
@@ -117,6 +118,7 @@ impl Default for Parameters {
             nodes: 4,
             effective_bandwidth: 1.0,
             payload_size: 0,
+            prop_time:0,
         }
     }
 }

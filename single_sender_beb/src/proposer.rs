@@ -44,6 +44,7 @@ pub struct Proposer {
     /// false implies block proposed, true implies metadata sent
     last_action: bool,
     nodes: u64,
+    prop_time: u64,
 }
 
 impl Proposer {
@@ -61,7 +62,7 @@ impl Proposer {
         alpha: f32,
         bandwidth: u64,
         nodes: u64,
-        effective_bandwidth: f32,
+        prop_time: u64,
     ) {
         tokio::spawn(async move {
             // let meta_size = meta_indep_size + meta_dep_size;
@@ -89,6 +90,7 @@ impl Proposer {
                 is_proposer,
                 last_action: false,
                 nodes,
+                prop_time,
             }
             .run()
             .await;
@@ -124,7 +126,7 @@ impl Proposer {
 
         self.last_action = !self.last_action;
         // self.timer.reset();
-        self.timer.set_timer(1000);
+        self.timer.set_timer(self.prop_time);
     }
 
     async fn send_proposal(&mut self, proposal: Proposal) {
