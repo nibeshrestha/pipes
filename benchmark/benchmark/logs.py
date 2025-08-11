@@ -397,7 +397,7 @@ class LogParser:
                 latency.append(commits[d]-t)
             except Exception as e:
                 print(e)
-        latency = latency[:10]
+        latency = latency[:-10]
         print(latency)
         return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
 
