@@ -19,10 +19,11 @@ futures = "0.3.15"
 config = { path = "../config" }
 store = { path = "../store" }
 crypto = { path = "../crypto" }
-single_sender_beb = { path = "../single_sender_beb" }
+primary = { path = "../primary" }
+consensus = { path = "../consensus" }
 
 [features]
-benchmark = ["single_sender_beb/benchmark"]
+benchmark = ["primary/benchmark", "consensus/benchmark"]
 
 [[bin]]         
 name = "benchmark_client"   

@@ -1,12 +1,13 @@
 // Copyright(C) Facebook, Inc. and its affiliates.
 use anyhow::{Context, Result};
 use clap::{crate_name, crate_version, App, AppSettings, ArgMatches, SubCommand};
+use config::Comm;
 use config::Export as _;
 use config::Import as _;
-use config::{Comm, Committee, KeyPair, Parameters};
-use crypto::SignatureService;
+use config::{Committee, KeyPair, Parameters};
+use consensus::Consensus;
 use env_logger::Env;
-use single_sender_beb::{Block, Consensus};
+use primary::{Certificate, Primary};
 use store::Store;
 use tokio::sync::mpsc::{channel, Receiver};
 
@@ -54,13 +55,6 @@ async fn main() -> Result<()> {
     logger.format_timestamp_millis();
     logger.init();
 
-    #[cfg(tokio_unstable)]
-    {
-        let runtime_metric = tokio::runtime::Handle::current().metrics();
-        debug!("Runtime metrics:");
-        debug!("    - Workers: {:?}", runtime_metric.num_workers());
-    }
-
     match matches.subcommand() {
         ("generate_keys", Some(sub_matches)) => KeyPair::new()
             .export(sub_matches.value_of("filename").unwrap())
@@ -73,14 +67,14 @@ async fn main() -> Result<()> {
 
 // Runs either a worker or a primary.
 async fn run(matches: &ArgMatches<'_>) -> Result<()> {
-    let key_file = matches.value_of("keys").unwrap();
+    let ed_key_file = matches.value_of("keys").unwrap();
     let committee_file = matches.value_of("committee").unwrap();
     let parameters_file = matches.value_of("parameters");
     let store_path = matches.value_of("store").unwrap();
 
     // Read the committee and node's keypair from file.
-    let keypair = KeyPair::import(key_file).context("Failed to load the node's keypair")?;
-    let name = keypair.name;
+    let ed_keypair = KeyPair::import(ed_key_file).context("Failed to load the node's keypair")?;
+
     let comm = Comm::import(committee_file).context("Failed to load the committee information")?;
 
     // Load default parameters if none are specified.
@@ -90,14 +84,10 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         }
         None => Parameters::default(),
     };
-
-    // The `SignatureService` provides signatures on input digests.
-    let signature_service = SignatureService::new(keypair.secret);
+    let committee = Committee::new(comm.authorities);
 
     // Make the data store.
     let store = Store::new(store_path).context("Failed to create a store")?;
-
-    let committee = Committee::new(&name, comm.authorities);
 
     // Channels the sequence of certificates.
     let (tx_output, rx_output) = channel(CHANNEL_CAPACITY);
@@ -106,12 +96,24 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     match matches.subcommand() {
         // Spawn the primary and consensus core.
         ("primary", _) => {
-            Consensus::spawn(
-                name,
-                committee,
-                parameters,
-                signature_service,
+            let (tx_new_certificates, rx_new_certificates) = channel(CHANNEL_CAPACITY);
+            let (tx_feedback, rx_feedback) = channel(CHANNEL_CAPACITY);
+            let (tx_consensus_header, rx_consensus_header) = channel(CHANNEL_CAPACITY);
+            Primary::spawn(
+                ed_keypair,
+                committee.clone(),
+                parameters.clone(),
                 store,
+                /* tx_consensus */ tx_new_certificates,
+                /* rx_consensus */ rx_feedback,
+                tx_consensus_header,
+            );
+            Consensus::spawn(
+                committee,
+                parameters.gc_depth,
+                /* rx_primary */ rx_new_certificates,
+                rx_consensus_header,
+                /* tx_primary */ tx_feedback,
                 tx_output,
             );
         }
@@ -126,8 +128,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
 }
 
 /// Receives an ordered list of certificates and apply any application-specific logic.
-async fn analyze(mut rx_output: Receiver<Block>) {
-    while let Some(_block) = rx_output.recv().await {
+async fn analyze(mut rx_output: Receiver<Certificate>) {
+    while let Some(_certificate) = rx_output.recv().await {
         // NOTE: Here goes the application logic.
     }
 }

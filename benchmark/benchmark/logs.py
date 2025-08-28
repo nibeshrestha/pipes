@@ -1,10 +1,11 @@
 # Copyright(C) Facebook, Inc. and its affiliates.
 from datetime import datetime
 from glob import glob
+from multiprocessing import Pool
 from os.path import join
 from re import findall, search
-from statistics import mean, median
-
+from statistics import mean
+import csv
 from benchmark.utils import Print
 
 
@@ -13,114 +14,83 @@ class ParseError(Exception):
 
 
 class LogParser:
-    def __init__(self, clients, primaries, workers, faults=0, consensus_only=False, debug=False):
+    def __init__(self, clients, primaries, faults=0, consensus_only=False):
+        
         inputs = [primaries]
 
         if not consensus_only:
-            inputs += [clients, workers]
+            inputs += [clients]
 
         assert all(isinstance(x, list) for x in inputs)
         assert all(isinstance(x, str) for y in inputs for x in y)
         assert all(x for x in inputs)
-
+        
         self.consensus_only = consensus_only
-        self.debug = debug
         self.faults = faults
-
-        if consensus_only:
-            self.committee_size = len(primaries)
+        if isinstance(faults, int):
+            self.committee_size = len(primaries) + int(faults)
         else:
-            if isinstance(faults, int):
-                self.committee_size = len(primaries) + int(faults)
-                self.workers = len(workers) // len(primaries)
-            else:
-                self.committee_size = '?'
-                self.workers = '?'
+            self.committee_size = '?'
+            self.workers = '?'
 
-        if debug and self.committee_size > 100:
-            # Use a ThreadPool if we need to parse debug info for very large
-            # networks. Process pools fail when the data that needs to be
-            # passed between them is large enough to cause 'broken pipe' errors.
-            from multiprocessing.pool import ThreadPool as Pool
-        else:
-            from multiprocessing import Pool
+        if not consensus_only:
+            # Parse the clients logs.
+            try:
+                with Pool() as p:
+                    results = p.map(self._parse_clients, clients)
+            except (ValueError, IndexError, AttributeError) as e:
+                raise ParseError(f'Failed to parse clients\' logs: {e}')
+            self.size, self.rate, self.start, misses, self.sent_samples \
+                = zip(*results)
+            self.misses = sum(misses)
 
         # Parse the primaries logs.
         try:
-            # Header should be included in the first 1000 characters.
-            header_len = 1200
-            # Header is the same for all nodes.
-            header = primaries[0][0:header_len]
-            self.config = self._parse_config(header)
-
             with Pool() as p:
-                results = p.map(self._parse_primary, primaries)
+                results = p.map(self._parse_primaries, primaries)
         except (ValueError, IndexError, AttributeError) as e:
-            raise Exception(f'Failed to parse nodes\' logs: {e}')
+            raise ParseError(f'Failed to parse nodes\' logs: {e}')
         
-        block_proposals, \
-            block_commits, \
-            block_receipts, \
-            meta_receipts, \
-            self.block_send_ends, \
-            self.ack_to_receipt_delays, \
-            self.vote_creations, \
-            self.vote_receipts, \
-            sample_receipts = zip(*results)
+        proposals, commits, self.configs, primary_ips, leader_commits, non_leader_commits, self.received_samples, sizes = zip(*results)
+        self.proposals = self._merge_results([x.items() for x in proposals])
+        self.commits = self._merge_results([x.items() for x in commits])
+        self.leader_commits = self._merge_results([x.items() for x in leader_commits])
+        self.non_leader_commits = self._merge_results([x.items() for x in non_leader_commits])
 
-        # committed_blocks = [x.items() for x in block_commits]
-        self.block_proposals = self._representative_results_by_digest([x.items() for x in block_proposals], False)
-        self.meta_receipts = self._representative_results_by_digest([x.items() for x in meta_receipts], False)
-        self.block_receipts = self._representative_results_by_digest([x.items() for x in block_receipts], False)
-        # self.block_first_commits = self._representative_results_by_digest(committed_blocks, True)
-        # self.block_last_commits = self._representative_results_by_digest(committed_blocks, False)
-        self.sample_receipts = self._get_ordered_block_proposals([x.items() for x in sample_receipts])
+        self.sizes = {
+            k: v for x in sizes for k, v in x.items() if k in self.commits
+        }
+        # # Parse the workers logs.
+        # try:
+        #     with Pool() as p:
+        #         results = p.map(self._parse_workers, workers)
+        # except (ValueError, IndexError, AttributeError) as e:
+        #     raise ParseError(f'Failed to parse workers\' logs: {e}')
+        # sizes, self.received_samples, workers_ips = zip(*results)
 
-        self.ordered_proposals = self._get_ordered_block_proposals([x.items() for x in block_proposals]) 
-    # Filters the given list of results for each node (where each result
-    # set is itself a list of (digest, timestamp) pairs), keeping the 
-    # representative timestamp for each digest in the result set. This
-    # timestamp is the least in keep_least is true, otherwise it is the
-    # 2f+1th greatest (i.e. the greatest honest timestamp -- we assume that
-    # Byzantine nodes want to report high values).
+        # # Determine whether the primary and the workers are collocated.
+        # self.collocate = set(primary_ips) == set(workers_ips)
+        self.collocate = True
 
-    def _get_ordered_block_proposals(self, proposals):
-        values = []
-        for node_result in proposals:
-            for digest, timestamp in node_result:
-                values.append((digest, timestamp))
-        result = sorted(values, key=lambda x: x[1])
-        return result[20:]
-    
-    def _representative_results_by_digest(self, input, keep_least):
+        if not self.consensus_only:
+            # Check whether clients missed their target rate.
+            if self.misses != 0:
+                Print.warn(
+                    f'Clients missed their target rate {self.misses:,} time(s)'
+                )
+
+    def _merge_results(self, input):
+        # Keep the earliest timestamp.
         merged = {}
-        filtered = {}
-        f = (self.committee_size - 1) // 3
-
-        # Collect all results by digest
-        for node_results in input:
-            for digest, timestamp in node_results:
-                if not digest in merged:
-                    merged[digest] = [timestamp]
-                else:
-                    merged[digest].append(timestamp)
-        
-        for digest in merged:
-            # Sort the results for each digest by timestamp
-            sorted_timestamps = sorted(merged[digest])
-            # Consider the first 2f+1 readings honest
-            # honest_timestamps = sorted_timestamps[0:2*f+1]
-
-            if keep_least:
-                filtered[digest] = sorted_timestamps[0]
-            else:
-                filtered[digest] = sorted_timestamps[-1]
-        
-        return filtered
+        for x in input:
+            for k, v in x:
+                if not k in merged or merged[k] > v:
+                    merged[k] = v
+        return merged
 
     def _parse_clients(self, log):
         if search(r'Error', log) is not None:
-            raise Exception('Client(s) panicked')
+            raise ParseError('Client(s) panicked')
 
         size = int(search(r'Transactions size: (\d+)', log).group(1))
         rate = int(search(r'Transactions rate: (\d+)', log).group(1))
@@ -134,293 +104,82 @@ class LogParser:
         samples = {int(s): self._to_posix(t) for t, s in tmp}
 
         return size, rate, start, misses, samples
-    
-    def _map_timestamps_to_digests(self, regex, log):
-        return { d: self._to_posix(t) for t, d in findall(regex, log) }
-    
-    def _parse_primary(self, log):
+
+    def _parse_primaries(self, log):
         if search(r'(?:panicked|Error)', log) is not None:
-            raise Exception('Primary(s) panicked')
-        
-        # Consensus (SupraBFT) data
-        block_proposals, block_commits = [], []
-        # Consensus debug data
-        block_receipts, block_send_ends, ack_to_receipt_delays, vote_creations, vote_receipts, meta_receipts \
-            = [], [], [], [], [], []
+            raise ParseError('Primary(s) panicked')
 
-        sample_receipts = self._map_timestamps_to_digests(
-            r'\[(.*Z) .* Received sample txn (\d+)', log
-        )
-        # Consensus block creation
-        block_proposals = self._map_timestamps_to_digests(
-            r'\[(.*Z) .* Created Block ([^ ]+): CMB\(.*\)', log)
+        tmp = findall(r'\[(.*Z) .* Created ([^ ]+)\n', log)
+        tmp = [(d, self._to_posix(t)) for t, d in tmp]
+        proposals = self._merge_results([tmp])
 
-        block_receipts = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Received Block ([^ ]+): CMB\(.*\)', log)
+        tmp = findall(r'\[(.*Z) .* Committed ([^ ]+)', log)
+        tmp = [(d, self._to_posix(t)) for t, d in tmp]
+        commits = self._merge_results([tmp])
 
-        meta_receipts = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Received Dependent Meta (\d+)', log)
-        
-        # block_proposals = self._map_timestamps_to_digests(
-        #     r'\[(.*Z) .* Created ([^ ]+): HSB\(.*\)', log)
+        tmp = findall(r'\[(.*Z) .* Committed ([^ ]+) Leader', log)
+        tmp = [(d, self._to_posix(t)) for t, d in tmp]
+        leader_commits = self._merge_results([tmp])
 
-        # Consensus block commit
-        # block_commits = self._map_timestamps_to_digests(
-        #     r'\[(.*Z) .* Committed ([^ ]+): CMB\(.*\)', log)
-        
-        # block_commits = self._map_timestamps_to_digests(
-        #     r'\[(.*Z) .* Committed ([^ ]+): HSB\(.*\)', log)
+        tmp = findall(r'\[(.*Z) .* Committed ([^ ]+) NonLeader', log)
+        tmp = [(d, self._to_posix(t)) for t, d in tmp]
+        non_leader_commits = self._merge_results([tmp])
 
-        if not self.consensus_only:
-            ip = search(r'booted on (\d+.\d+.\d+.\d+)', log).group(1)
+        if self.consensus_only:
+            samples = {}
+            tmp = findall(r'Header ([^ ]+) contains (\d+) B', log)
+            sizes = {d: int(s) for d, s in tmp}
+        else:
+            tmp = findall(r'Header ([^ ]+) contains sample tx (\d+)', log)
+            samples = {int(s): d for d, s in tmp}
 
-            # Narwhal header creation
-            header_proposals = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Created Header ([^ ]+):', log)
+            tmp = findall(r'Header ([^ ]+) contains (\d+) B', log)
+            sizes = {d: int(s) for d, s in tmp}
 
-            # Narwhal batch inclusion in header
-            batch_inclusions = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Created B\d+\([^ ]+\) -> ([^ ]+=)', log)
-            
-            # Narwhal header sent to consensus
-            header_dispatches = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Sending Certificate for Header ([^ ]+):', log)
-
-            # Narwhal batch sent to consensus (same time as header dispatch)
-            batch_dispatches = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Sending Batch B\d+\([^ ]+\) -> ([^ ]+=)', log)
-
-            # Narwhal batch commit
-            batch_commits = self._map_timestamps_to_digests(
-                r'\[(.*Z) .* Committed B\d+\([^ ]+\) -> ([^ ]+=)', log)
-            
-
-        return block_proposals, block_commits, block_receipts, meta_receipts, block_send_ends, \
-            ack_to_receipt_delays, vote_creations, vote_receipts, sample_receipts
-    
-    def _parse_config(self, header):
-        return {
+        configs = {
             'header_size': int(
-                search(r'Header size .* (\d+)', header).group(1)
+                search(r'Header size .* (\d+)', log).group(1)
             ),
             'max_header_delay': int(
-                search(r'Max header delay .* (\d+)', header).group(1)
+                search(r'Max header delay .* (\d+)', log).group(1)
             ),
             'gc_depth': int(
-                search(r'Garbage collection depth .* (\d+)', header).group(1)
+                search(r'Garbage collection depth .* (\d+)', log).group(1)
             ),
             'sync_retry_delay': int(
-                search(r'Sync retry delay .* (\d+)', header).group(1)
+                search(r'Sync retry delay .* (\d+)', log).group(1)
             ),
             'sync_retry_nodes': int(
-                search(r'Sync retry nodes .* (\d+)', header).group(1)
+                search(r'Sync retry nodes .* (\d+)', log).group(1)
             ),
             'batch_size': int(
-                search(r'Batch size .* (\d+)', header).group(1)
-            ),
-            'block_size': int(
-                search(r'Block size .* (\d+)', header).group(1)
-            ),
-            'dep_meta_size': int(
-                search(r'Dep meta size .* (\d+)', header).group(1)
-            ),
-            'indep_meta_size': int(
-                search(r'Indep meta size .* (\d+)', header).group(1)
+                search(r'Batch size .* (\d+)', log).group(1)
             ),
             'max_batch_delay': int(
-                search(r'Max batch delay .* (\d+)', header).group(1)
+                search(r'Max batch delay .* (\d+)', log).group(1)
             ),
-            'alpha': 
-                search(r'Alpha set to (\d+.\d+)', header).group(1)
-            ,
-            'meta_prop_time':
-                search(r'MetaPropTime set to (\d+)', header).group(1)
-            ,
-            'block_prop_time':
-                search(r'BlockPropTime set to (\d+)', header).group(1)
+            'transaction_size': int(
+                search(r'Transaction size .* (\d+)', log).group(1)
+            ),
         }
-        
-    def _merge_maps(self, ms):
-        merged = {}
-        for m in ms:
-            for k in m.keys():
-                if k not in merged:
-                    merged[k] = {}
-
-                for l in m[k].keys():
-                    merged[k][l] = m[k][l]
-        return merged
-
-    def _log_debug_stats(self):
-        print('Debug Stats:')
-        
-        block_receipts = {}
-        for node_receipts in self.block_receipts:
-            for block in node_receipts.keys():
-                if block not in block_receipts:
-                    block_receipts[block] = [node_receipts[block] - self.block_proposals[block]]
-                else:
-                    block_receipts[block].append(node_receipts[block] - self.block_proposals[block])
-
-        all_block_receipt_stats = {}
-        for block, receipt_delays in block_receipts.items():
-            all_block_receipt_stats[block] = {
-                'average': mean(receipt_delays),
-                'median': median(receipt_delays),
-                'min': min(receipt_delays),
-                'max': max(receipt_delays)
-            }
-        
-        averages = [ stats['average'] for stats in all_block_receipt_stats.values() ]
-        medians = [ stats['median'] for stats in all_block_receipt_stats.values() ]
-        mins = [ stats['min'] for stats in all_block_receipt_stats.values() ]
-        maxs = [ stats['max'] for stats in all_block_receipt_stats.values() ]
-        block_receipt_stats = {
-            'average': mean(averages),
-            'median': mean(medians),
-            'min': mean(mins),
-            'max': mean(maxs)
-        }
-
-        print('Block receipt delay (ms): ' + str(block_receipt_stats))
-
-        vote_creations = {}
-        for node_creations in self.vote_creations:
-            for block in node_creations.keys():
-                if block not in vote_creations:
-                    vote_creations[block] = {}
-
-                for id in node_creations[block].keys():
-                    vote_creations[block][id] = node_creations[block][id]
-
-        # { vote_creator: { block_voted_for: [ delays_to_receipt... ] } }
-        vote_receipt_delays = {}
-        for node_receipts in self.vote_receipts:
-            for block in node_receipts.keys():
-                for id in node_receipts[block].keys():
-                    delivery_time = node_receipts[block][id] - vote_creations[block][id]
-
-                    if id not in vote_receipt_delays:
-                        vote_receipt_delays[id] = {}
-                    
-                    if block not in vote_receipt_delays[id]:
-                        vote_receipt_delays[id][block] = [delivery_time]
-                    else:
-                        vote_receipt_delays[id][block].append(delivery_time)
-
-        all_vote_receipt_stats = {}
-        averages = []
-        medians = []
-        mins = []
-        maxs = []
-        for vote_creator in vote_receipt_delays.keys():
-            for block, receipt_delays in vote_receipt_delays[vote_creator].items():
-                avg = mean(receipt_delays)
-                med = median(receipt_delays)
-                l = min(receipt_delays)
-                h = max(receipt_delays)
-                averages.append(avg)
-                medians.append(med)
-                mins.append(l)
-                maxs.append(h)
-
-                if vote_creator not in all_vote_receipt_stats:
-                    all_vote_receipt_stats[vote_creator] = {}
-
-                all_vote_receipt_stats[vote_creator][block] = {
-                    'average': avg,
-                    'median': med,
-                    'min': l,
-                    'max': h
-                }
-        
-        vote_receipt_stats = {
-            'average': mean(averages),
-            'median': mean(medians),
-            'min': mean(mins),
-            'max': mean(maxs)
-        }
-
-        print('Vote receipt delay (ms): ' + str(vote_receipt_stats))
-
-        ack_aggregates = {}
-        for node_delays in self.ack_to_receipt_delays:
-            for block, delay in node_delays.items():
-                if block in ack_aggregates:
-                    ack_aggregates[block].append(delay)
-                else:
-                    ack_aggregates[block] = [delay]
-
-        averages = {}
-        medians = {}
-        mins = {}
-        maxs = {}
-        for block, agg_delays in ack_aggregates.items():
-            averages[block] = mean(agg_delays)
-            medians[block] = median(agg_delays)
-            mins[block] = min(agg_delays)
-            maxs[block] = max(agg_delays)
-
-        ack_to_receipt_delay_stats = {
-            'average': mean(averages.values()),
-            'median': mean(medians.values()),
-            'min': mean(mins.values()),
-            'max': mean(maxs.values())
-        }
-        # Time between a node sending ACK for a Block and when the Core actually starts
-        # processing the Block. If this is non-zero then it indicates that the node has
-        # a backlog of messages to process, which is undesirable.
-        print('ACK to start of Block processing (ms): ' + str(ack_to_receipt_delay_stats))
-
-    def _parse_workers(self, log):
-        if search(r'(?:panic|Error)', log) is not None:
-            raise Exception('Worker(s) panicked')
-
-        tmp = findall(r'Batch ([^ ]+) contains (\d+) B', log)
-        sizes = {d: int(s) for d, s in tmp}
-
-        tmp = findall(r'Batch ([^ ]+) contains sample tx (\d+)', log)
-        samples = {int(s): d for d, s in tmp}
 
         ip = search(r'booted on (\d+.\d+.\d+.\d+)', log).group(1)
 
-        return sizes, samples, ip
+        return proposals, commits, configs, ip, leader_commits, non_leader_commits, samples, sizes
 
-    def _to_posix(self, string):
-        x = datetime.fromisoformat(string.replace('Z', '+00:00'))
-        return datetime.timestamp(x)
-    
-    def _latency_two(self, proposals, commits: map):
-        latency = []
-        for d, t in proposals:
-            try:
-                latency.append(commits[d]-t)
-            except Exception as e:
-                print(e)
-        latency = latency[:-10]
-        print(latency)
-        return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
+    # def _parse_workers(self, log):
+    #     if search(r'(?:panic|Error)', log) is not None:
+    #         raise ParseError('Worker(s) panicked')
 
-    def _latency(self, proposals, commits: map):
-        latency = []
+    #     tmp = findall(r'Batch ([^ ]+) contains (\d+) B', log)
+    #     sizes = {d: int(s) for d, s in tmp}
 
-        for d, c in commits.items():
-            try:
-                latency.append(c-proposals[d])
-            except:
-                pass
-        return mean(latency) * 1000, median(latency) * 1000 if latency else 0, max(latency) * 1000
+    #     tmp = findall(r'Batch ([^ ]+) contains sample tx (\d+)', log)
+    #     samples = {int(s): d for d, s in tmp}
 
-    def _narwhal_throughput(self, start, commits: map):
-        if not commits:
-            return 0, 0, 0
-        end = max(commits.values())
-        batches_committed = len(commits.keys())
-        duration = end - start
-        bytes = sum(self.sizes.values())
-        bps = bytes / duration
-        tps = bps / self.size[0]
-        return batches_committed, tps, bps
+    #     ip = search(r'booted on (\d+.\d+.\d+.\d+)', log).group(1)
+
+    #     return sizes, samples, ip
 
     def _throughput(self, start, commits):
         if not commits:
@@ -431,63 +190,116 @@ class LogParser:
         commits_per_second = total_commits / duration
         return total_commits, commits_per_second, duration
 
-    # Latency from the time a client sent a transaction to that the header 
-    # containing that transaction was committed.
-    def _end_to_end_latency(self, commits):
+    def _to_posix(self, string):
+        x = datetime.fromisoformat(string.replace('Z', '+00:00'))
+        return datetime.timestamp(x)
+
+    def _consensus_throughput(self):
+        if not self.commits:
+            return 0, 0, 0
+        start, end = min(self.proposals.values()), max(self.commits.values())
+        duration = end - start
+        bytes = sum(self.sizes.values())
+        bps = bytes / duration
+        tps = bps / self.size[0]
+        return tps, bps, duration
+
+    def _consensus_only_throughput(self):
+        if not self.commits:
+            return 0, 0, 0
+        start, end = min(self.proposals.values()), max(self.commits.values())
+        bytes = sum(self.sizes.values())
+        tx_size = self.configs[0]['transaction_size']
+        txns = bytes / tx_size
+        d = end-start
+        return txns/d
+
+    def _consensus_latency(self):
+        latency = [c - self.proposals[d] for d, c in self.commits.items()]
+        return mean(latency) if latency else 0
+
+    def _consensus_leader_latency(self):
+        latency = [c - self.proposals[d]
+                   for d, c in self.leader_commits.items()]
+        return mean(latency) if latency else 0
+
+    def _consensus_non_leader_latency(self):
+        latency = [c - self.proposals[d]
+                   for d, c in self.non_leader_commits.items()]
+        return mean(latency) if latency else 0
+
+    def _end_to_end_throughput(self):
+        if not self.commits:
+            return 0, 0, 0
+        start, end = min(self.start), max(self.commits.values())
+        duration = end - start
+        bytes = sum(self.sizes.values())
+        bps = bytes / duration
+        tps = bps / self.size[0]
+        return tps, bps, duration
+
+    def _end_to_end_latency(self):
+
         latency = []
         for sent, received in zip(self.sent_samples, self.received_samples):
-            for tx_id, batch_id in received.items():
-                if batch_id in commits:
+            for tx_id, header_id in received.items():
+                if header_id in self.commits:
                     assert tx_id in sent  # We receive txs that we sent.
                     start = sent[tx_id]
-                    end = commits[batch_id]
+                    end = self.commits[header_id]
                     latency += [end-start]
-        return mean(latency) * 1000, median(latency) * 1000 if latency else 0
+        return mean(latency) if latency else 0
 
-    def _config_output(self):
-        block_size = self.config['block_size']
-        dep_meta_size = self.config['dep_meta_size']
-        indep_meta_size = self.config['indep_meta_size']
-        sync_retry_delay = self.config['sync_retry_delay']
-        sync_retry_nodes = self.config['sync_retry_nodes']
-        alpha = float(self.config['alpha'])
-        meta_prop_time = int(self.config['meta_prop_time'])
-        block_prop_time = int(self.config['block_prop_time'])
+    def result(self):
+        first_proposal_time = min(self.proposals.values())
+        start, end = min(self.proposals.values()), max(self.commits.values())
+        duration = end - start
+
+        header_size = self.configs[0]['header_size']
+        max_header_delay = self.configs[0]['max_header_delay']
+        gc_depth = self.configs[0]['gc_depth']
+        sync_retry_delay = self.configs[0]['sync_retry_delay']
+        sync_retry_nodes = self.configs[0]['sync_retry_nodes']
+        batch_size = self.configs[0]['batch_size']
+        max_batch_delay = self.configs[0]['max_batch_delay']
+
+        consensus_latency = self._consensus_latency() * 1_000
+        leader_consensus_latency = self._consensus_leader_latency() * 1_000
+        non_leader_consensus_latency = self._consensus_non_leader_latency() * 1_000
+
+        _, blps_first, _ = self._throughput(first_proposal_time, self.commits)
+
+        consensus_tps = 0
+        consensus_bps = 0
+        end_to_end_bps = 0
+        end_to_end_tps = 0
+        end_to_end_latency = 0
+
+        if not self.consensus_only:
+            consensus_tps, consensus_bps, _ = self._consensus_throughput()
+            end_to_end_tps, end_to_end_bps, duration = self._end_to_end_throughput()
+            end_to_end_latency = self._end_to_end_latency() * 1_000
+        else:
+            consensus_tps = self._consensus_only_throughput()
+
+        header_size = self.configs[0]['header_size']
+        csv_file_path = f'benchmark_{self.committee_size}.csv'
+        write_to_csv(round(leader_consensus_latency), round(non_leader_consensus_latency), round(consensus_tps), round(consensus_bps), round(
+            consensus_latency), round(end_to_end_tps), round(end_to_end_bps), round(end_to_end_latency), round(blps_first), header_size, csv_file_path)
 
         if self.consensus_only:
             return (
-                ' + CONFIG:\n'
-                f' Consensus run in isolation\n'
-                f' Faults: {self.faults} node(s)\n'
-                f' Committee size: {self.committee_size} node(s)\n'
                 '\n'
-                f' Block size: {block_size:,} B\n'
-                f' Dependent Meta size: {dep_meta_size:,} B\n'
-                f' Independent Meta size: {indep_meta_size:,} B\n'
-                f' Alpha: {alpha:.2f} \n'
-                f' Meta Prop Time: {meta_prop_time:,} ms\n'
-                f' Block Prop Time: {block_prop_time:,} ms\n'
-                '\n'
-            )
-        else:
-            header_size = self.config['header_size']
-            max_header_delay = self.config['max_header_delay']
-            gc_depth = self.config['gc_depth']
-            batch_size = self.config['batch_size']
-            max_batch_delay = self.config['max_batch_delay']
-
-            return (
+                '-----------------------------------------\n'
+                ' SUMMARY:\n'
+                '-----------------------------------------\n'
                 ' + CONFIG:\n'
                 f' Faults: {self.faults} node(s)\n'
                 f' Committee size: {self.committee_size} node(s)\n'
-                f' Worker(s) per node: {self.workers} worker(s)\n'
+                f' Worker(s) per node: 1 worker\n'
                 f' Collocate primary and workers: {self.collocate}\n'
-                f' Input rate: {sum(self.rate):,} tx/s\n'
-                f' Transaction size: {self.size[0]:,} B\n'
+                f' Execution time: {round(duration):,} s\n'
                 '\n'
-                f' Block size: {block_size:,} Certificates\n'
-                f' Dependent Meta size: {dep_meta_size:,} B\n'
-                f' Independent Meta size: {indep_meta_size:,} B\n'
                 f' Header size: {header_size:,} B\n'
                 f' Max header delay: {max_header_delay:,} ms\n'
                 f' GC depth: {gc_depth:,} round(s)\n'
@@ -496,138 +308,47 @@ class LogParser:
                 f' batch size: {batch_size:,} B\n'
                 f' Max batch delay: {max_batch_delay:,} ms\n'
                 '\n'
-            )
-
-    def _block_consensus_output(self):
-        first_proposal_time = min(self.block_proposals.values())
-
-        total_received, blps_first, duration = self._throughput(first_proposal_time, self.meta_receipts)
-        
-        bcl_mean_first, bcl_median_first, max_first = \
-            self._latency_two(self.sample_receipts, self.meta_receipts)
-        bdl_mean_first, bdl_median_first, _ = self._latency_two(self.ordered_proposals, self.block_receipts)
-        # blk_mean_last, blk_median_last, _ = self._latency(self.sample_receipts, self.block_receipts)
-        # bcl_mean_last, bcl_median_last, _ = \
-            # self._latency(self.block_proposals, self.block_last_commits)
-        
-        return (
-            f' Execution time: {round(duration):,} s\n'
-            f'\n'
-            f' Block Delivered:\n'
-            f'   Mean Latency: {round(bdl_mean_first):,} ms\n'
-            f'   Median Latency: {round(bdl_median_first):,} ms\n'
-            f'\n'
-            f' Meta Delivered:\n'
-            f'   Mean Latency: {round(bcl_mean_first):,} ms\n'
-            f'   Median Latency: {round(bcl_median_first):,} ms\n'
-            f'   Max Latency: {round(max_first):,} ms\n'
-            f'   BLPS: {round(blps_first):,} blocks/s\n'
-            f'   Total Blocks Received: {round(total_received):,}\n'
-        )
-    
-    def _narwhal_output(self):
-        first_proposal_time = min(self.header_proposals.values())
-        first_client_init = min(self.start)
-
-        # Latency between transaction creation and header dispatch.
-        tdl_mean, tdl_median = \
-                self._end_to_end_latency(self.batch_dispatches)
-
-        # Latency between header creation and dispatch to consensus
-        hdl_mean, hdl_median, _ = \
-                self._latency(self.header_proposals, self.header_dispatches)
-
-        headers_dispatched, tps_first, bps_first = \
-            self._throughput(first_proposal_time, self.header_dispatches)
-
-        # Latency between batch creation and commit
-        bcl_mean_first, bcl_median_first, _ = \
-                self._latency(self.batch_inclusions, self.batch_first_commits)
-        bcl_mean_last, bcl_median_last, _ = \
-                self._latency(self.batch_inclusions, self.batch_last_commits)
-
-        _, tps_first, bps_first = \
-            self._narwhal_throughput(first_proposal_time, self.batch_first_commits)
-        _, tps_last, bps_last = \
-            self._narwhal_throughput(first_proposal_time, self.batch_last_commits)
-
-        # Throughput and latency measurements from the boot of the first client to
-        # the last commit. For shorter runs these will deviate from the other metrics
-        # by a larger margin given the network often takes a few rounds to synchronize
-        # due to the various processes coming online at slightly different times across
-        # the different machines.
-        _, end_to_end_tps_first, end_to_end_bps_first = \
-            self._narwhal_throughput(first_client_init, self.batch_last_commits)
-        batches_committed, end_to_end_tps_last, end_to_end_bps_last = \
-            self._narwhal_throughput(first_client_init, self.batch_last_commits)
-        e2el_mean_first, e2el_median_first = self._end_to_end_latency(self.batch_first_commits)
-        e2el_mean_last, e2el_median_last = self._end_to_end_latency(self.batch_last_commits)
-
-        return (
-            f' Header Dispatch to Consensus:\n'
-            f'   From Tx Creation:\n'
-            f'     Mean Latency: {round(tdl_mean):,} ms\n'
-            f'     Median Latency: {round(tdl_median):,} ms\n'
-            f'   From Header Creation:\n'
-            f'     Mean Latency: {round(hdl_mean):,} ms\n'
-            f'     Median Latency: {round(hdl_median):,} ms\n'
-            f'   Total Headers Dispatched: {round(headers_dispatched):,}\n'
-            '\n'
-            f' Batch Commit:\n'
-            f'   To First Commit:\n'
-            f'     Mean Latency: {round(bcl_mean_first):,} ms\n'
-            f'     Median Latency: {round(bcl_median_first):,} ms\n'
-            f'     TPS: {round(tps_first):,} tx/s\n'
-            f'     BPS: {round(bps_first):,} B/s\n'
-            f'   To Last Commit:\n'
-            f'     Mean Latency: {round(bcl_mean_last):,} ms\n'
-            f'     Median Latency: {round(bcl_median_last):,} ms\n'
-            f'     TPS: {round(tps_last):,} tx/s\n'
-            f'     BPS: {round(bps_last):,} B/s\n'
-            f'   Total Batches Committed: {round(batches_committed):,}\n'
-            '\n'
-            f' End-To-End:\n'
-            f'   To First Commit:\n'
-            f'     Mean Latency: {round(e2el_mean_first):,} ms\n'
-            f'     Median Latency: {round(e2el_median_first):,} ms\n'
-            f'     TPS: {round(end_to_end_tps_first):,} tx/s\n'
-            f'     BPS: {round(end_to_end_bps_first):,} B/s\n'
-            f'   To Last Commit:\n'
-            f'     Mean Latency: {round(e2el_mean_last):,} ms\n'
-            f'     Median Latency: {round(e2el_median_last):,} ms\n'
-            f'     TPS: {round(end_to_end_tps_last):,} tx/s\n'
-            f'     BPS: {round(end_to_end_bps_last):,} B/s\n'
-        )
-
-    def result(self):
-        if self.debug:
-            self._log_debug_stats()
-
-        config_output = self._config_output()
-        block_consensus_output = self._block_consensus_output()
-        result = (
-            '\n'
-            '-----------------------------------------\n'
-            ' SUMMARY:\n'
-            '-----------------------------------------\n'
-            f'Logs generated at: {datetime.now()}\n'
-            '\n'
-            f'{config_output}'
-            ' + RESULTS:\n'
-            f'{block_consensus_output}'
-        )
-
-        if self.consensus_only:
-            return (
-                f'{result}'
+                ' + RESULTS:\n'
+                f' Consensus BLPS: {round(blps_first):,} Block/s\n'
+                f' Consensus TPS: {round(consensus_tps):,} tx/s\n'
+                f' Consensus latency: {round(consensus_latency):,} ms\n'
+                f' Consensus leader latency: {round(leader_consensus_latency):,} ms\n'
+                f' Consensus non leader latency: {round(non_leader_consensus_latency):,} ms\n'
                 '-----------------------------------------\n'
             )
         else:
-            narwhal_output = self._narwhal_output()
             return (
-                f'{result}'
                 '\n'
-                f'{narwhal_output}'
+                '-----------------------------------------\n'
+                ' SUMMARY:\n'
+                '-----------------------------------------\n'
+                ' + CONFIG:\n'
+                f' Faults: {self.faults} node(s)\n'
+                f' Committee size: {self.committee_size} node(s)\n'
+                f' Worker(s) per node: 1 worker\n'
+                f' Collocate primary and workers: {self.collocate}\n'
+                f' Input rate: {sum(self.rate):,} tx/s\n'
+                f' Transaction size: {self.size[0]:,} B\n'
+                f' Execution time: {round(duration):,} s\n'
+                '\n'
+                f' Header size: {header_size:,} B\n'
+                f' Max header delay: {max_header_delay:,} ms\n'
+                f' GC depth: {gc_depth:,} round(s)\n'
+                f' Sync retry delay: {sync_retry_delay:,} ms\n'
+                f' Sync retry nodes: {sync_retry_nodes:,} node(s)\n'
+                f' batch size: {batch_size:,} B\n'
+                f' Max batch delay: {max_batch_delay:,} ms\n'
+                '\n'
+                ' + RESULTS:\n'
+                f' Consensus TPS: {round(consensus_tps):,} tx/s\n'
+                f' Consensus BPS: {round(consensus_bps):,} B/s\n'
+                f' Consensus latency: {round(consensus_latency):,} ms\n'
+                f' Consensus leader latency: {round(leader_consensus_latency):,} ms\n'
+                f' Consensus non leader latency: {round(non_leader_consensus_latency):,} ms\n'
+                '\n'
+                f' End-to-end TPS: {round(end_to_end_tps):,} tx/s\n'
+                f' End-to-end BPS: {round(end_to_end_bps):,} B/s\n'
+                f' End-to-end latency: {round(end_to_end_latency):,} ms\n'
                 '-----------------------------------------\n'
             )
 
@@ -637,22 +358,33 @@ class LogParser:
             f.write(self.result())
 
     @classmethod
-    def process(cls, directory, faults=0, consensus_only=False, debug=False):
+    def process(cls, directory, faults=0, consensus_only=False):
         assert isinstance(directory, str)
-        clients = []
-        primaries = []
-        workers = []
 
+        primaries = []
         for filename in sorted(glob(join(directory, 'primary-*.log'))):
             with open(filename, 'r') as f:
                 primaries += [f.read()]
 
+        clients = []
         if not consensus_only:
             for filename in sorted(glob(join(directory, 'client-*.log'))):
                 with open(filename, 'r') as f:
                     clients += [f.read()]
-            for filename in sorted(glob(join(directory, 'worker-*.log'))):
-                with open(filename, 'r') as f:
-                    workers += [f.read()]
 
-        return cls(clients, primaries, workers, faults=faults, consensus_only=consensus_only, debug=debug)
+        return cls(clients, primaries, faults=faults, consensus_only=consensus_only)
+
+
+def write_to_csv(con_r0_latency, con_r1_latency, consensus_tps, consensus_bps, consensus_latency, e2e_tps, e2e_bps, e2e_latency, blps, header_size, csv_file_path):
+    # Open the CSV file in append mode
+    with open(csv_file_path, mode='a', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        column_names = ['Consensus R Latency', 'Consensus R-1 Latency', 'Consensus Tps', 'Consensus Bps',
+                        'Consensus Latency', 'E2E Tps', 'E2E Bps', 'E2E Latency', 'BLPS', 'Header size']
+        # If the file is empty, write the header
+        if csv_file.tell() == 0:
+            writer.writerow(column_names)
+
+        # Write the extracted data to the CSV file
+        writer.writerow([con_r0_latency, con_r1_latency, consensus_tps, consensus_bps,
+                        consensus_latency, e2e_tps, e2e_bps, e2e_latency, blps, header_size])

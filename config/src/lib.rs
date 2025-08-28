@@ -60,10 +60,8 @@ pub type WorkerId = u32;
 
 #[derive(Deserialize, Clone)]
 pub struct Parameters {
-    /// Runs the consensus module in isolation if true.
+    // consensus only flag
     pub consensus_only: bool,
-    /// The timeout delay of the consensus protocol.
-    pub timeout_delay: u64,
     /// The preferred header size. The primary creates a new header when it has enough parents and
     /// enough batches' digests to reach `header_size`. Denominated in bytes.
     pub header_size: usize,
@@ -80,47 +78,24 @@ pub struct Parameters {
     /// The preferred batch size. The workers seal a batch of transactions when it reaches this size.
     /// Denominated in bytes.
     pub batch_size: usize,
+    pub tx_size: usize,
     /// The delay after which the workers seal a batch of transactions, even if `max_batch_size`
     /// is not reached. Denominated in ms.
     pub max_batch_delay: u64,
-    /// Causes Prepare messages to be unicast to a designated aggregator rather than broadcast.
-    pub use_vote_aggregator: bool,
-    pub meta_indep_size: usize,
-    pub meta_dep_size: usize,
-    pub client_rate: u64,
-    pub alpha: f32,
-    /// Bandwidth in Bps
-    pub bandwidth: u64,
-    pub nodes: u64,
-    pub effective_bandwidth: f32,
-    pub meta_prop_time: u64,
-    pub block_prop_time: u64,
-    pub prime_prop_time: u64,
 }
 
 impl Default for Parameters {
     fn default() -> Self {
         Self {
             consensus_only: false,
-            timeout_delay: 5_000,
             header_size: 1_000,
             max_header_delay: 100,
             gc_depth: 50,
             sync_retry_delay: 5_000,
             sync_retry_nodes: 3,
             batch_size: 500_000,
+            tx_size: 512,
             max_batch_delay: 100,
-            use_vote_aggregator: false,
-            meta_indep_size: 1,
-            meta_dep_size: 1,
-            client_rate: 100,
-            alpha: 0.95,
-            bandwidth: 12500000,
-            nodes: 4,
-            effective_bandwidth: 1.0,
-            meta_prop_time: 100,
-            block_prop_time: 100,
-            prime_prop_time: 1000,
         }
     }
 }
@@ -129,37 +104,18 @@ impl Import for Parameters {}
 
 impl Parameters {
     pub fn log(&self) {
-        // NOTE: These log entries are needed to compute performance.
         if self.consensus_only {
             info!("Running consensus in isolation");
         }
-        let meta_size = self.meta_indep_size + self.meta_dep_size;
-        let payload_size: usize = ((self.alpha * meta_size as f32)
-            / (1 as f32 - self.alpha)) as usize;
-
-        info!("Block frequency set to {} ms", self.timeout_delay);
+        info!("Header size set to {} B", self.header_size);
+        info!("Max header delay set to {} ms", self.max_header_delay);
         info!("Garbage collection depth set to {} rounds", self.gc_depth);
         info!("Sync retry delay set to {} ms", self.sync_retry_delay);
         info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
         info!("Batch size set to {} B", self.batch_size);
-        info!("Block size set to {} B", payload_size);
-        info!("Dep meta size set to {} B ", self.meta_dep_size);
-        info!("Indep meta size set to {} B ", self.meta_indep_size);
-        info!("Alpha set to {}", self.alpha);
-        info!("MetaPropTime set to {}", self.meta_prop_time);
-        info!("BlockPropTime set to {}", self.block_prop_time);
-        info!("Bandwidth set to {} Bps", self.bandwidth);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
-        info!("Header size set to {} B", self.header_size);
-        info!("Max header delay set to {} ms", self.max_header_delay);
-        info!("Client rate set to {} ms", self.client_rate);
+        info!("Transaction size set to {} B", self.tx_size);
     }
-}
-
-#[derive(Clone, Deserialize)]
-pub struct ConsensusAddresses {
-    /// Address to receive messages from other consensus nodes (WAN).
-    pub consensus_to_consensus: SocketAddr,
 }
 
 #[derive(Clone, Deserialize)]
@@ -182,11 +138,8 @@ pub struct WorkerAddresses {
 
 #[derive(Clone, Deserialize)]
 pub struct Authority {
-    pub id: u32,
     /// The voting power of this authority.
     pub stake: Stake,
-    /// The network addresses of the consensus protocol.
-    pub consensus: ConsensusAddresses,
     /// The network addresses of the primary.
     pub primary: PrimaryAddresses,
     /// Map of workers' id and their network addresses.
@@ -202,15 +155,23 @@ impl Import for Comm {}
 #[derive(Clone, Deserialize)]
 pub struct Committee {
     pub authorities: BTreeMap<PublicKey, Authority>,
-    pub my_id: u32,
+    pub sorted_keys: Vec<PublicKey>,
+    pub quorum_size: u32,
 }
 
 impl Import for Committee {}
 
 impl Committee {
-    pub fn new(name: &PublicKey, authorities: BTreeMap<PublicKey, Authority>) -> Committee {
-        let my_id = authorities.get(&name).unwrap().id;
-        let committee = Self { authorities, my_id };
+    pub fn new(authorities: BTreeMap<PublicKey, Authority>) -> Committee {
+        let mut keys: Vec<_> = authorities.keys().cloned().collect();
+        keys.sort();
+        let total_votes: Stake = authorities.values().map(|x| x.stake).sum();
+        let quorum_size = 2 * total_votes / 3 + 1;
+        let committee = Self {
+            authorities,
+            sorted_keys: keys,
+            quorum_size,
+        };
         committee
     }
 
@@ -221,11 +182,7 @@ impl Committee {
 
     /// Return the stake of a specific authority.
     pub fn stake(&self, name: &PublicKey) -> Stake {
-        self.authorities.get(&name).map_or_else(|| 0, |x| x.stake)
-    }
-
-    pub fn id(&self) -> u32 {
-        self.my_id
+        self.authorities.get(name).map_or_else(|| 0, |x| x.stake)
     }
 
     /// Returns the stake of all authorities except `myself`.
@@ -241,8 +198,7 @@ impl Committee {
     pub fn quorum_threshold(&self) -> Stake {
         // If N = 3f + 1 + k (0 <= k < 3)
         // then (2 N + 3) / 3 = 2f + 1 + (2k + 2)/3 = 2f + 1 + k = N - f
-        let total_votes: Stake = self.authorities.values().map(|x| x.stake).sum();
-        2 * total_votes / 3 + 1
+        self.quorum_size
     }
 
     /// Returns the stake required to reach availability (f+1).
@@ -253,28 +209,39 @@ impl Committee {
         (total_votes + 2) / 3
     }
 
-    /// Returns the consensus addresses of the target consensus node.
-    pub fn consensus(&self, to: &PublicKey) -> Result<ConsensusAddresses, ConfigError> {
-        self.authorities
-            .get(to)
-            .map(|x| x.consensus.clone())
-            .ok_or_else(|| ConfigError::NotInCommittee(*to))
+    /// Returns a leader node in a round-robin fashion.
+    /// This does not have to be changed because it works for odd and even numbers.
+    pub fn leader(&self, seed: usize) -> PublicKey {
+        let mut keys: Vec<_> = self.authorities.keys().cloned().collect();
+        keys.sort();
+        keys[seed % self.size()]
     }
 
-    /// Returns the addresses of all consensus nodes except `myself`.
-    pub fn others_consensus(&self, myself: &PublicKey) -> Vec<(PublicKey, ConsensusAddresses)> {
-        self.authorities
-            .iter()
-            .filter(|(name, _)| name != &myself)
-            .map(|(name, authority)| (*name, authority.consensus.clone()))
-            .collect()
+    pub fn sub_leaders(&self, seed: usize, num_leaders: usize) -> Vec<PublicKey> {
+        let mut keys: Vec<_> = self.authorities.keys().cloned().collect();
+        keys.sort();
+
+        // Find the index of the seed in the sorted keys vector
+        let seed_index = seed % self.size();
+
+        // Collect the subsequent num_leader-1 pubKeys in the sorted array from the seed
+        let mut sub_leaders = Vec::with_capacity(num_leaders - 1);
+        for i in 1..num_leaders {
+            let index = (seed_index + i) % self.size(); // Wrap around if needed
+            sub_leaders.push(keys[index].clone());
+        }
+
+        sub_leaders
     }
 
-    pub fn others_consensus_sockets(&self, myself: &PublicKey) -> Vec<SocketAddr> {
-        self.others_consensus(myself)
-            .into_iter()
-            .map(|(_, x)| x.consensus_to_consensus)
-            .collect()
+    pub fn leader_list(&self, leaders_per_round: usize, seed: usize) -> Vec<PublicKey> {
+        let mut keys: Vec<_> = self.authorities.keys().cloned().collect();
+        keys.sort();
+        let mut leaders: Vec<PublicKey> = Vec::new();
+        for i in 0..leaders_per_round {
+            leaders.push(keys[(seed + i) % self.size()]);
+        }
+        leaders
     }
 
     /// Returns the primary addresses of the target primary.
@@ -339,6 +306,13 @@ impl Committee {
                     .find(|(worker_id, _)| worker_id == &id)
                     .map(|(_, addresses)| (*name, addresses.clone()))
             })
+            .collect()
+    }
+
+    pub fn get_public_keys(&self) -> Vec<PublicKey> {
+        self.authorities
+            .iter()
+            .map(|(name, _)| (name.clone()))
             .collect()
     }
 }
