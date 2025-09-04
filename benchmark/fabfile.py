@@ -125,12 +125,12 @@ def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=Fa
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
-        'nodes': 40,
+        'nodes': 10,
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 240,
+        'duration': 60,
         'runs': 1,
     }
 
