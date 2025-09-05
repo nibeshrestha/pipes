@@ -124,7 +124,7 @@ impl Proposer {
             self.propose().await;
         } else {
             if self.last_action {
-                info!("Received sample txn {:?}", self.round + 1);
+                info!("Received sample txn {:?}", (self.committee.id() << 20) as u64 + self.round + 1);
                 self.timer.set_timer(self.meta_prop_time);
                 self.send_dependent_meta().await;
             } else {
@@ -175,7 +175,7 @@ impl Proposer {
     async fn send_dependent_meta(&mut self) {
         let mut meta = vec![0u8; self.meta_dep_size];
 
-        let m = DependentMeta::new(self.name, meta, self.round).await;
+        let m = DependentMeta::new(self.name, meta, (self.committee.id() << 20) as u64 + self.round).await;
 
         let (names, addresses): (Vec<_>, _) = self
             .committee
@@ -203,7 +203,7 @@ impl Proposer {
         let mut meta_indep = vec![0u8; self.meta_indep_size];
 
         self.round += 1;
-        let sample_tx: u64 = self.round;
+        let sample_tx: u64 = (self.committee.id() << 20) as u64 + self.round;
 
         let b = Block::new(
             self.name,
@@ -255,9 +255,7 @@ impl Proposer {
                     }
                 },
                 () = &mut self.timer => {
-                    if self.is_proposer {
-                        self.client_reset().await
-                    }
+                    self.client_reset().await
                 },
             }
         }
