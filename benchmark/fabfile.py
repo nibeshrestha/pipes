@@ -25,22 +25,13 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'nodes': bench_params['nodes'],
         'meta_indep_size': 12500,
         'meta_dep_size': 25000,
-        'alpha': 0.95,
         'bandwidth': 12500000,
         'effective_bandwidth': 0.5,
         'meta_prop_time': 100,
         'block_prop_time': 200,
-        'client_rate': 20, # in ms
+        'client_rate': 250000, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
-        'header_size': 1_000,  # bytes
-        'gc_depth': 50,  # rounds
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200,  # ms
-        'use_vote_aggregator': aggregate,
-        'sync_retry_delay': 5_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'max_header_delay': 200,  # ms
         'prime_prop_time': 200,
     }
     try:

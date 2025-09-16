@@ -64,35 +64,12 @@ pub struct Parameters {
     pub consensus_only: bool,
     /// The timeout delay of the consensus protocol.
     pub timeout_delay: u64,
-    /// The preferred header size. The primary creates a new header when it has enough parents and
-    /// enough batches' digests to reach `header_size`. Denominated in bytes.
-    pub header_size: usize,
-    /// The maximum delay that the primary waits between generating two headers, even if the header
-    /// did not reach `max_header_size`. Denominated in ms.
-    pub max_header_delay: u64,
-    /// The depth of the garbage collection (Denominated in number of rounds).
-    pub gc_depth: u64,
-    /// The delay after which the synchronizer retries to send sync requests. Denominated in ms.
-    pub sync_retry_delay: u64,
-    /// Determine with how many nodes to sync when re-trying to send sync-request. These nodes
-    /// are picked at random from the committee.
-    pub sync_retry_nodes: usize,
-    /// The preferred batch size. The workers seal a batch of transactions when it reaches this size.
-    /// Denominated in bytes.
-    pub batch_size: usize,
-    /// The delay after which the workers seal a batch of transactions, even if `max_batch_size`
-    /// is not reached. Denominated in ms.
-    pub max_batch_delay: u64,
-    /// Causes Prepare messages to be unicast to a designated aggregator rather than broadcast.
-    pub use_vote_aggregator: bool,
     pub meta_indep_size: usize,
     pub meta_dep_size: usize,
     pub client_rate: u64,
-    pub alpha: f32,
     /// Bandwidth in Bps
     pub bandwidth: u64,
     pub nodes: u64,
-    pub effective_bandwidth: f32,
     pub meta_prop_time: u64,
     pub block_prop_time: u64,
     pub prime_prop_time: u64,
@@ -102,22 +79,12 @@ impl Default for Parameters {
     fn default() -> Self {
         Self {
             consensus_only: false,
-            timeout_delay: 5_000,
-            header_size: 1_000,
-            max_header_delay: 100,
-            gc_depth: 50,
-            sync_retry_delay: 5_000,
-            sync_retry_nodes: 3,
-            batch_size: 500_000,
-            max_batch_delay: 100,
-            use_vote_aggregator: false,
+            timeout_delay: 20,
             meta_indep_size: 1,
             meta_dep_size: 1,
             client_rate: 100,
-            alpha: 0.95,
             bandwidth: 12500000,
             nodes: 4,
-            effective_bandwidth: 1.0,
             meta_prop_time: 100,
             block_prop_time: 100,
             prime_prop_time: 1000,
@@ -133,26 +100,17 @@ impl Parameters {
         if self.consensus_only {
             info!("Running consensus in isolation");
         }
-        let meta_size = self.meta_indep_size + self.meta_dep_size;
-        let payload_size: usize = ((self.alpha * meta_size as f32)
-            / (1 as f32 - self.alpha)) as usize;
-
+        let meta_size = self.meta_indep_size + (self.nodes as usize) * self.meta_dep_size;
+        let payload_size: usize =
+            ((self.client_rate * meta_size as u64) / (self.bandwidth - self.client_rate)) as usize;
         info!("Block frequency set to {} ms", self.timeout_delay);
-        info!("Garbage collection depth set to {} rounds", self.gc_depth);
-        info!("Sync retry delay set to {} ms", self.sync_retry_delay);
-        info!("Sync retry nodes set to {} nodes", self.sync_retry_nodes);
-        info!("Batch size set to {} B", self.batch_size);
         info!("Block size set to {} B", payload_size);
         info!("Dep meta size set to {} B ", self.meta_dep_size);
         info!("Indep meta size set to {} B ", self.meta_indep_size);
-        info!("Alpha set to {}", self.alpha);
+        info!("D set to {}", self.client_rate);
         info!("MetaPropTime set to {}", self.meta_prop_time);
         info!("BlockPropTime set to {}", self.block_prop_time);
         info!("Bandwidth set to {} Bps", self.bandwidth);
-        info!("Max batch delay set to {} ms", self.max_batch_delay);
-        info!("Header size set to {} B", self.header_size);
-        info!("Max header delay set to {} ms", self.max_header_delay);
-        info!("Client rate set to {} ms", self.client_rate);
     }
 }
 

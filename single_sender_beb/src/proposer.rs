@@ -36,7 +36,7 @@ pub struct Proposer {
     counter: u64,
     meta_indep_size: usize,
     meta_dep_size: usize,
-    alpha: f32,
+    client_rate: u64,
     bandwidth: u64,
     timer: Timer,
     is_proposer: bool,
@@ -58,9 +58,8 @@ impl Proposer {
         meta_dep_size: usize,
         rx_core: Receiver<ProposerMessage>,
         tx_proposer_core: Sender<Proposal>,
-        client_rate: u64,
         is_proposer: bool,
-        alpha: f32,
+        client_rate: u64,
         bandwidth: u64,
         nodes: u64,
         meta_prop_time: u64,
@@ -68,8 +67,9 @@ impl Proposer {
         prime_prop_time: u64,
     ) {
         tokio::spawn(async move {
-            let meta_size = meta_indep_size + meta_dep_size;
-            let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
+            let meta_size = meta_indep_size + (nodes as usize) * meta_dep_size;
+            let payload_size: usize =
+                ((client_rate * meta_size as u64) / (bandwidth - client_rate)) as usize;
 
             Self {
                 name,
@@ -88,7 +88,7 @@ impl Proposer {
                 counter: 0,
                 meta_indep_size,
                 meta_dep_size,
-                alpha,
+                client_rate,
                 bandwidth,
                 timer: Timer::new(client_rate),
                 is_proposer,
@@ -124,7 +124,10 @@ impl Proposer {
             self.propose().await;
         } else {
             if self.last_action {
-                info!("Received sample txn {:?}", (self.committee.id() << 20) as u64 + self.round + 1);
+                info!(
+                    "Received sample txn {:?}",
+                    (self.committee.id() << 20) as u64 + self.round + 1
+                );
                 self.timer.set_timer(self.meta_prop_time);
                 self.send_dependent_meta().await;
             } else {
@@ -175,7 +178,12 @@ impl Proposer {
     async fn send_dependent_meta(&mut self) {
         let mut meta = vec![0u8; self.meta_dep_size];
 
-        let m = DependentMeta::new(self.name, meta, (self.committee.id() << 20) as u64 + self.round).await;
+        let m = DependentMeta::new(
+            self.name,
+            meta,
+            (self.committee.id() << 20) as u64 + self.round,
+        )
+        .await;
 
         let (names, addresses): (Vec<_>, _) = self
             .committee
