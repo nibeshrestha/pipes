@@ -111,7 +111,7 @@ def reset_filter(ctx):
         Print.error(e)
 
 @task
-def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=False):
+def remote(ctx, mpt=20, bpt=300, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
@@ -120,7 +120,7 @@ def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=Fal
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 120,
+        'duration': 60,
         'runs': 1,
     }
 
@@ -128,23 +128,14 @@ def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=Fal
         'nodes': bench_params['nodes'],
         'meta_indep_size': 12500,
         'meta_dep_size': 25000,
-        'alpha': 0.95,
+        'client_rate': 250000, # in ms
         'bandwidth': 12500000,  #12500000,
         'meta_prop_time': mpt,
         'block_prop_time': bpt, 
         'prime_prop_time': 2000,
-        'effective_bandwidth': 0.80,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms
-        'client_rate': 10, # in ms
         'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
-        'gc_depth': 50,  # rounds
-        'sync_retry_delay': 5_000,  # ms
-        'sync_retry_nodes': 3,  # number of nodes
-        'batch_size': 500_000,  # bytes
-        'max_batch_delay': 200,  # ms
-        'use_vote_aggregator': aggregate
         # 'track_consensus_transmission_stats': False,
         # 'track_narwhal_transmission_stats': False,
         # 'transmission_stats_print_interval': 5,

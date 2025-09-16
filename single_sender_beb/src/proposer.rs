@@ -67,7 +67,7 @@ impl Proposer {
         prime_prop_time: u64,
     ) {
         tokio::spawn(async move {
-            let meta_size = meta_indep_size + (nodes as usize) * meta_dep_size;
+            let meta_size = meta_indep_size * (nodes as usize) +  meta_dep_size;
             let payload_size: usize =
                 ((client_rate * meta_size as u64) / (bandwidth - client_rate)) as usize;
 

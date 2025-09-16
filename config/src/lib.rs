@@ -100,7 +100,7 @@ impl Parameters {
         if self.consensus_only {
             info!("Running consensus in isolation");
         }
-        let meta_size = self.meta_indep_size + (self.nodes as usize) * self.meta_dep_size;
+        let meta_size = self.meta_dep_size + (self.nodes as usize) * self.meta_indep_size;
         let payload_size: usize =
             ((self.client_rate * meta_size as u64) / (self.bandwidth - self.client_rate)) as usize;
         info!("Block frequency set to {} ms", self.timeout_delay);

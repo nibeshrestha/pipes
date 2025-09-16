@@ -95,7 +95,6 @@ class LogParser:
     def _representative_results_by_digest(self, input, keep_least):
         merged = {}
         filtered = {}
-        f = (self.committee_size - 1) // 3
 
         # Collect all results by digest
         for node_results in input:
