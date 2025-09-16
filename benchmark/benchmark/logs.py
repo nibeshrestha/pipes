@@ -200,24 +200,6 @@ class LogParser:
     
     def _parse_config(self, header):
         return {
-            'header_size': int(
-                search(r'Header size .* (\d+)', header).group(1)
-            ),
-            'max_header_delay': int(
-                search(r'Max header delay .* (\d+)', header).group(1)
-            ),
-            'gc_depth': int(
-                search(r'Garbage collection depth .* (\d+)', header).group(1)
-            ),
-            'sync_retry_delay': int(
-                search(r'Sync retry delay .* (\d+)', header).group(1)
-            ),
-            'sync_retry_nodes': int(
-                search(r'Sync retry nodes .* (\d+)', header).group(1)
-            ),
-            'batch_size': int(
-                search(r'Batch size .* (\d+)', header).group(1)
-            ),
             'block_size': int(
                 search(r'Block size .* (\d+)', header).group(1)
             ),
@@ -230,8 +212,8 @@ class LogParser:
             'max_batch_delay': int(
                 search(r'Max batch delay .* (\d+)', header).group(1)
             ),
-            'alpha': 
-                search(r'Alpha set to (\d+.\d+)', header).group(1)
+            'client_rate': 
+                search(r'D set to (\d+)', header).group(1)
             ,
             'meta_prop_time':
                 search(r'MetaPropTime set to (\d+)', header).group(1)
@@ -448,9 +430,7 @@ class LogParser:
         block_size = self.config['block_size']
         dep_meta_size = self.config['dep_meta_size']
         indep_meta_size = self.config['indep_meta_size']
-        sync_retry_delay = self.config['sync_retry_delay']
-        sync_retry_nodes = self.config['sync_retry_nodes']
-        alpha = float(self.config['alpha'])
+        client_rate = float(self.config['client_rate'])
         meta_prop_time = int(self.config['meta_prop_time'])
         block_prop_time = int(self.config['block_prop_time'])
 
@@ -464,18 +444,12 @@ class LogParser:
                 f' Block size: {block_size:,} B\n'
                 f' Dependent Meta size: {dep_meta_size:,} B\n'
                 f' Independent Meta size: {indep_meta_size:,} B\n'
-                f' Alpha: {alpha:.2f} \n'
+                f' Client Rate: {client_rate:,} \n'
                 f' Meta Prop Time: {meta_prop_time:,} ms\n'
                 f' Block Prop Time: {block_prop_time:,} ms\n'
                 '\n'
             )
         else:
-            header_size = self.config['header_size']
-            max_header_delay = self.config['max_header_delay']
-            gc_depth = self.config['gc_depth']
-            batch_size = self.config['batch_size']
-            max_batch_delay = self.config['max_batch_delay']
-
             return (
                 ' + CONFIG:\n'
                 f' Faults: {self.faults} node(s)\n'
@@ -488,13 +462,6 @@ class LogParser:
                 f' Block size: {block_size:,} Certificates\n'
                 f' Dependent Meta size: {dep_meta_size:,} B\n'
                 f' Independent Meta size: {indep_meta_size:,} B\n'
-                f' Header size: {header_size:,} B\n'
-                f' Max header delay: {max_header_delay:,} ms\n'
-                f' GC depth: {gc_depth:,} round(s)\n'
-                f' Sync retry delay: {sync_retry_delay:,} ms\n'
-                f' Sync retry nodes: {sync_retry_nodes:,} node(s)\n'
-                f' batch size: {batch_size:,} B\n'
-                f' Max batch delay: {max_batch_delay:,} ms\n'
                 '\n'
             )
 

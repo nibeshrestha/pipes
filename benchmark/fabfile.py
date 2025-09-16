@@ -18,24 +18,22 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'workers': 1,
         'rate': 150_000,
         'tx_size': 512,
-        'duration': 30,
+        'duration': 20,
     }
 
     node_params = {
         'nodes': bench_params['nodes'],
         'meta_indep_size': 12500,
         'meta_dep_size': 25000,
-        'alpha': 0.95,
+        'client_rate': 250000,
         'bandwidth': 12500000,
         'effective_bandwidth': 0.5,
         'meta_prop_time': 100,
         'block_prop_time': 200,
-        'client_rate': 20, # in ms
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
         'header_size': 1_000,  # bytes
         'gc_depth': 50,  # rounds
-        'batch_size': 500_000,  # bytes
         'max_batch_delay': 200,  # ms
         'use_vote_aggregator': aggregate,
         'sync_retry_delay': 5_000,  # ms
@@ -51,7 +49,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
 
 
 @task
-def create(ctx, nodes=10):
+def create(ctx, nodes=50):
     ''' Create a testbed'''
     try:
         InstanceManager.make().create_instances(nodes)
@@ -124,7 +122,7 @@ def remote(ctx, mpt=20, bpt=550, debug=False, consensus_only=True, aggregate=Fal
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
-        'nodes': 10,
+        'nodes': 50,
         'workers': 1,
         'collocate': True,
         'rate': [150_000],

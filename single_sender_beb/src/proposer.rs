@@ -36,14 +36,12 @@ pub struct Proposer {
     counter: u64,
     meta_indep_size: usize,
     meta_dep_size: usize,
-    alpha: f32,
     bandwidth: u64,
     timer: Timer,
     is_proposer: bool,
 
     /// false implies block proposed, true implies metadata sent
     last_action: bool,
-    nodes: u64,
     meta_prop_time: u64,
     block_prop_time: u64,
     prime_prop_time: u64,
@@ -58,19 +56,19 @@ impl Proposer {
         meta_dep_size: usize,
         rx_core: Receiver<ProposerMessage>,
         tx_proposer_core: Sender<Proposal>,
+        bandwidth: u64,
         client_rate: u64,
         is_proposer: bool,
-        alpha: f32,
-        bandwidth: u64,
-        nodes: u64,
         meta_prop_time: u64,
         block_prop_time: u64,
         prime_prop_time: u64,
     ) {
-        tokio::spawn(async move {
-            let meta_size = meta_indep_size + meta_dep_size;
-            let payload_size: usize = ((alpha * meta_size as f32) / (1 as f32 - alpha)) as usize;
+        let meta_size = meta_indep_size + meta_dep_size;
+        let nodes = committee.size() - 1;
+        let payload_size: usize = (((client_rate * (nodes as u64) * meta_size as u64) as f64)
+                / ((bandwidth - (nodes as u64) * client_rate) as f64)) as usize;
 
+        tokio::spawn(async move {
             Self {
                 name,
                 consensus_only,
@@ -88,12 +86,10 @@ impl Proposer {
                 counter: 0,
                 meta_indep_size,
                 meta_dep_size,
-                alpha,
                 bandwidth,
                 timer: Timer::new(client_rate),
                 is_proposer,
                 last_action: false,
-                nodes,
                 meta_prop_time,
                 block_prop_time,
                 prime_prop_time,

@@ -141,7 +141,6 @@ impl Core {
     }
 
     async fn propose_if_leader(&mut self) {
-        // info!("My id is {:?}", self.committee.id(&self.name));
         if self.committee.id() == 0 {
             self.tx_proposer
                 .send(ProposerMessage::Propose())

@@ -234,8 +234,6 @@ class NodeParameters:
         try:
             inputs += [json['timeout_delay']]
             inputs += [json['header_size']]
-            inputs += [json['gc_depth']]
-            inputs += [json['batch_size']]
         except KeyError as e:
             raise ConfigError(f'Malformed parameters: missing key {e}')
 
