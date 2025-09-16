@@ -67,7 +67,7 @@ impl Proposer {
         prime_prop_time: u64,
     ) {
         tokio::spawn(async move {
-            let meta_size = meta_indep_size * (nodes as usize) +  meta_dep_size;
+            let meta_size = meta_indep_size * (nodes as usize) + meta_dep_size;
             let payload_size: usize =
                 ((client_rate * meta_size as u64) / (bandwidth - client_rate)) as usize;
 
@@ -208,7 +208,7 @@ impl Proposer {
         let mut payload;
 
         payload = vec![0u8; self.payload_size - 8];
-        let mut meta_indep = vec![0u8; self.meta_indep_size];
+        let mut meta_indep = vec![0u8; self.meta_indep_size * (self.nodes as usize)];
 
         self.round += 1;
         let sample_tx: u64 = (self.committee.id() << 20) as u64 + self.round;
