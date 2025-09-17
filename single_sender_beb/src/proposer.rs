@@ -8,8 +8,12 @@ use crypto::Hash;
 use crypto::{PublicKey, SignatureService};
 use log::{debug, info};
 use network::{CancelHandler, ReliableSender};
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::net::SocketAddr;
+use std::os::unix::thread;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::{sleep, Duration, Instant};
 
@@ -141,7 +145,7 @@ impl Proposer {
 
     async fn send_proposal(&mut self, proposal: Proposal) {
         info!("Created {:?}", proposal);
-        let (names, addresses): (Vec<_>, _) = self
+        let (names, mut addresses): (Vec<_>, Vec<SocketAddr>) = self
             .committee
             .others_consensus(&self.name)
             .into_iter()
@@ -157,6 +161,10 @@ impl Proposer {
             .expect("Failed to serialize block");
 
         info!("Proposal Size is {}B", message.len());
+        {
+            let mut rng = thread_rng();
+            addresses.shuffle(&mut rng);
+        }
 
         let handles = self
             .network
@@ -185,7 +193,7 @@ impl Proposer {
         )
         .await;
 
-        let (names, addresses): (Vec<_>, _) = self
+        let (names, mut addresses): (Vec<_>, Vec<SocketAddr>) = self
             .committee
             .others_consensus(&self.name)
             .into_iter()
@@ -196,6 +204,11 @@ impl Proposer {
             .expect("Failed to serialize block");
 
         info!("Metadata Size is {}B", message.len());
+
+        {
+            let mut rng = thread_rng();
+            addresses.shuffle(&mut rng);
+        }
 
         let handles = self
             .network
@@ -231,10 +244,10 @@ impl Proposer {
         // Generate a new Proposal.
         let proposal = self.make_proposal().await;
         // Send the Proposal to the Core for local processing.
-        self.tx_proposer_core
-            .send(proposal.clone())
-            .await
-            .expect("Failed to send block");
+        // self.tx_proposer_core
+        //     .send(proposal.clone())
+        //     .await
+        //     .expect("Failed to send block");
         // Broadcast the Proposal.
         self.send_proposal(proposal).await;
     }
