@@ -7,7 +7,7 @@ use config::Committee;
 use crypto::{PublicKey, SignatureService};
 #[cfg(feature = "benchmark")]
 use log::info;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use tokio::sync::mpsc::{Receiver, Sender};
