@@ -77,7 +77,7 @@ impl CertificatesAggregator {
             return Ok(None);
         }
 
-        if self.weight >= committee.quorum_threshold() {
+        if self.weight >= committee.size() as u32 {
             //self.weight = 0; // Ensures quorum is only reached once.
             return Ok(Some(self.certificates.drain(..).collect()));
         }
