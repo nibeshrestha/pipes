@@ -14,8 +14,10 @@ use std::fmt;
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Header {
     pub author: PublicKey,
+    pub author_id: u32,
     pub round: Round,
     pub payload: Vec<Transaction>,
+    pub sample_txn: u64,
     pub parents: Vec<Digest>,
     pub id: Digest,
 }
@@ -23,14 +25,18 @@ pub struct Header {
 impl Header {
     pub async fn new(
         author: PublicKey,
+        author_id: u32,
         round: Round,
         payload: Vec<Transaction>,
+        sample_txn: u64,
         parents: Vec<Digest>,
     ) -> Self {
         let header = Self {
             author,
+            author_id,
             round,
             payload,
+            sample_txn,
             parents,
             id: Digest::default(),
         };
@@ -74,13 +80,13 @@ impl Hash for Header {
 
 impl fmt::Debug for Header {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}: B{}({})", self.id, self.round, self.author,)
+        write!(f, "{}: B{}({})", self.id, self.round, self.author_id,)
     }
 }
 
 impl fmt::Display for Header {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "B{}({})", self.round, self.author)
+        write!(f, "B{}({})", self.round, self.author_id)
     }
 }
 
@@ -108,6 +114,7 @@ pub struct HeaderInfoWithCertificate {
     pub header_info: HeaderInfo,
     pub parents: Vec<Certificate>,
 }
+
 impl fmt::Debug for HeaderInfoWithCertificate {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(
@@ -129,8 +136,10 @@ impl fmt::Display for HeaderInfoWithCertificate {
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct HeaderInfo {
     pub author: PublicKey,
+    pub author_id: u32,
     pub round: Round,
     pub payload: Digest,
+    pub sample_txn: u64,
     pub parents: Vec<Digest>,
     pub id: Digest,
 }
@@ -138,8 +147,10 @@ impl HeaderInfo {
     pub fn create_from(header: &Header) -> Self {
         let header_info = Self {
             author: header.author,
+            author_id: header.author_id,
             round: header.round,
             payload: payload_digest(&header),
+            sample_txn: header.sample_txn,
             parents: header.parents.clone(),
             id: header.id,
         };
@@ -162,12 +173,12 @@ fn payload_digest(header: &Header) -> Digest {
 }
 impl fmt::Debug for HeaderInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{}: B{}({})", self.id, self.round, self.author,)
+        write!(f, "{}: B{}({})", self.id, self.round, self.author_id,)
     }
 }
 impl fmt::Display for HeaderInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "B{}({})", self.round, self.author)
+        write!(f, "B{}({})", self.round, self.author_id)
     }
 }
 
@@ -288,8 +299,10 @@ impl fmt::Debug for NoVoteMsg {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Vote {
     pub id: Digest,
+    pub sample_txn: u64,
     pub round: Round,
     pub origin: PublicKey,
+    pub origin_id: u32,
     pub author: PublicKey,
 }
 
@@ -297,8 +310,10 @@ impl Vote {
     pub async fn new_for_header_info(header_info: &HeaderInfo, author: &PublicKey) -> Self {
         Self {
             id: header_info.id.clone(),
+            sample_txn: header_info.sample_txn,
             round: header_info.round,
             origin: header_info.author,
+            origin_id: header_info.author_id,
             author: *author,
         }
     }
@@ -434,8 +449,10 @@ impl NoVoteCert {
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct Certificate {
     pub header_id: Digest,
+    pub sample_txn: u64,
     pub round: Round,
     pub origin: PublicKey,
+    pub origin_id: u32,
 }
 
 impl Certificate {
@@ -463,6 +480,10 @@ impl Certificate {
     pub fn origin(&self) -> PublicKey {
         self.origin
     }
+
+    pub fn origin_id(&self) -> u32 {
+        self.origin_id
+    }
 }
 
 impl Hash for Certificate {
@@ -482,7 +503,7 @@ impl fmt::Debug for Certificate {
             "{}: C{}({}, {})",
             self.digest(),
             self.round(),
-            self.origin(),
+            self.origin_id(),
             self.header_id
         )
     }

@@ -31,8 +31,10 @@ impl VotesAggregator {
 
             return Ok(Some(Certificate {
                 header_id: vote.id,
+                sample_txn: vote.sample_txn,
                 round: vote.round,
                 origin: vote.origin,
+                origin_id: vote.origin_id,
             }));
         }
         Ok(None)

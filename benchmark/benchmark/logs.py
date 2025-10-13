@@ -218,17 +218,39 @@ class LogParser:
         return txns/d
 
     def _consensus_latency(self):
-        latency = [c - self.proposals[d] for d, c in self.commits.items()]
+        latency = []
+        for d, c in self.commits.items():
+            try:
+                x = c - self.proposals[d]
+                latency.append(x)
+            except:
+                pass
+        # latency = [c - self.proposals[d] for d, c in self.commits.items()]
         return mean(latency) if latency else 0
 
     def _consensus_leader_latency(self):
-        latency = [c - self.proposals[d]
-                   for d, c in self.leader_commits.items()]
+        latency = []
+        for d, c in self.leader_commits.items():
+            try:
+                x = c - self.proposals[d]
+                latency.append(x)
+            except:
+                pass
+        # latency = [c - self.proposals[d]
+                #    for d, c in self.leader_commits.items()]
         return mean(latency) if latency else 0
 
     def _consensus_non_leader_latency(self):
-        latency = [c - self.proposals[d]
-                   for d, c in self.non_leader_commits.items()]
+        latency = []
+        for d, c in self.non_leader_commits.items():
+            try:
+                x = c - self.proposals[d]
+                latency.append(x)
+            except:
+                pass
+
+        # latency = [c - self.proposals[d]
+                #    for d, c in self.non_leader_commits.items()]
         return mean(latency) if latency else 0
 
     def _end_to_end_throughput(self):

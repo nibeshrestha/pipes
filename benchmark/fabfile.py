@@ -130,7 +130,7 @@ def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=Fa
         'collocate': True,
         'rate': [150_000],
         'tx_size': 512,
-        'duration': 60,
+        'duration': 100,
         'runs': 1,
     }
 
@@ -148,10 +148,10 @@ def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=Fa
         'block_prop_time': bpt, 
         'prime_prop_time': 5000,
         'consensus_only': consensus_only,
-        'timeout_delay': 10,  # ms
-        'client_rate': 2000, # num of transactions per second
+        'timeout_delay': 1000,  # ms
+        'client_rate': 1_000, # num of transactions per second
         'header_size': 1_000,  # bytes
-        'max_header_delay': 200,  # ms
+        'max_header_delay': 3000,  # ms
         'gc_depth': 50,  # rounds
         'sync_retry_delay': 5_000,  # ms
         'sync_retry_nodes': 3,  # number of nodes

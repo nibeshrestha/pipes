@@ -176,14 +176,14 @@ impl Consensus {
                                 // Output the sequence in the right order.
                                 for certificate in sequence {
                                     #[cfg(not(feature = "benchmark"))]
-                                    info!("Committed {} with header", certificate.header_id);
+                                    info!("Committed {} with header", certificate.sample_txn);
 
                                     if certificate.round == leader_round {
-                                        info!("Committed {:?} Leader", certificate.header_id);
+                                        info!("Committed {:?} Leader", certificate.sample_txn);
                                     }else if certificate.round == leader_round-1 {
-                                        info!("Committed {:?} NonLeader", certificate.header_id);
+                                        info!("Committed {:?} NonLeader", certificate.sample_txn);
                                     }else{
-                                        info!("Committed {:?} ", certificate.header_id);
+                                        info!("Committed {:?} ", certificate.sample_txn);
                                     }
 
                                     self.tx_primary

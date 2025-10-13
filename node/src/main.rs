@@ -73,8 +73,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     let store_path = matches.value_of("store").unwrap();
 
     // Read the committee and node's keypair from file.
-    let ed_keypair = KeyPair::import(ed_key_file).context("Failed to load the node's keypair")?;
-
+    let keypair = KeyPair::import(ed_key_file).context("Failed to load the node's keypair")?;
+    let name = keypair.name;
     let comm = Comm::import(committee_file).context("Failed to load the committee information")?;
 
     // Load default parameters if none are specified.
@@ -84,7 +84,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         }
         None => Parameters::default(),
     };
-    let committee = Committee::new(comm.authorities);
+    let committee = Committee::new(&name, comm.authorities);
 
     // Make the data store.
     let store = Store::new(store_path).context("Failed to create a store")?;
@@ -100,7 +100,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
             let (tx_feedback, rx_feedback) = channel(CHANNEL_CAPACITY);
             let (tx_consensus_header, rx_consensus_header) = channel(CHANNEL_CAPACITY);
             Primary::spawn(
-                ed_keypair,
+                keypair,
                 committee.clone(),
                 parameters.clone(),
                 store,

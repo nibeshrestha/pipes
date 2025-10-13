@@ -141,6 +141,7 @@ pub struct WorkerAddresses {
 
 #[derive(Clone, Deserialize)]
 pub struct Authority {
+    pub id: u32,
     /// The voting power of this authority.
     pub stake: Stake,
     /// The network addresses of the primary.
@@ -160,22 +161,29 @@ pub struct Committee {
     pub authorities: BTreeMap<PublicKey, Authority>,
     pub sorted_keys: Vec<PublicKey>,
     pub quorum_size: u32,
+    pub my_id: u32,
 }
 
 impl Import for Committee {}
 
 impl Committee {
-    pub fn new(authorities: BTreeMap<PublicKey, Authority>) -> Committee {
+    pub fn new(name: &PublicKey, authorities: BTreeMap<PublicKey, Authority>) -> Committee {
         let mut keys: Vec<_> = authorities.keys().cloned().collect();
         keys.sort();
+        let my_id = authorities.get(&name).unwrap().id;
         let total_votes: Stake = authorities.values().map(|x| x.stake).sum();
         let quorum_size = 2 * total_votes / 3 + 1;
         let committee = Self {
             authorities,
             sorted_keys: keys,
             quorum_size,
+            my_id,
         };
         committee
+    }
+
+    pub fn id(&self) -> u32 {
+        self.my_id
     }
 
     /// Returns the number of authorities.

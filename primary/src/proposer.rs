@@ -156,7 +156,7 @@ impl Proposer {
             } else {
                 let duration = self.last_proposal_time.elapsed().as_millis();
                 let num_txns = duration * self.client_rate as u128 / 1000;
-                info!("Num of transactions {:?}", num_txns);
+                info!("Num of transactions {:?} round {:?}", num_txns, self.round);
                 payload = vec![vec![0u8; self.tx_size]; num_txns as usize];
             }
         } else {
@@ -167,20 +167,26 @@ impl Proposer {
 
         let header = Header::new(
             self.name,
+            self.committee.id(),
             self.round,
             payload,
+            (self.committee.id() << 20) as u64 + self.round,
             parents.iter().map(|x| x.header_id).collect(),
         )
         .await;
 
         self.last_proposal_time = Instant::now();
+        info!(
+            "Created {:?}",
+            (self.committee.id() << 20) as u64 + self.round + 1
+        );
 
         #[cfg(feature = "benchmark")]
         {
-            info!("Created {:?}", header.id);
+            // info!("Created {:?}", header.id);
             info!(
                 "Header {:?} contains {} B",
-                header.id,
+                header.sample_txn,
                 header.payload.len() * self.tx_size
             );
 
