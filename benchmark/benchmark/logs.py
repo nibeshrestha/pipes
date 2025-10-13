@@ -161,6 +161,9 @@ class LogParser:
             'transaction_size': int(
                 search(r'Transaction size .* (\d+)', log).group(1)
             ),
+            'client_rate': int(
+                search(r'Client rate .* (\d+)', log).group(1)
+            ),
         }
 
         ip = search(r'booted on (\d+.\d+.\d+.\d+)', log).group(1)
@@ -262,6 +265,7 @@ class LogParser:
         sync_retry_nodes = self.configs[0]['sync_retry_nodes']
         batch_size = self.configs[0]['batch_size']
         max_batch_delay = self.configs[0]['max_batch_delay']
+        client_rate = self.configs[0]['client_rate']
 
         consensus_latency = self._consensus_latency() * 1_000
         leader_consensus_latency = self._consensus_leader_latency() * 1_000
@@ -307,6 +311,7 @@ class LogParser:
                 f' Sync retry nodes: {sync_retry_nodes:,} node(s)\n'
                 f' batch size: {batch_size:,} B\n'
                 f' Max batch delay: {max_batch_delay:,} ms\n'
+                f' Client rate: {client_rate:,} tx/s\n'
                 '\n'
                 ' + RESULTS:\n'
                 f' Consensus BLPS: {round(blps_first):,} Block/s\n'

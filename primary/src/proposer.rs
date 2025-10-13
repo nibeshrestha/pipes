@@ -59,6 +59,9 @@ pub struct Proposer {
     last_timeout_cert: TimeoutCert,
     /// Holds the latest No Vote Certificate received.
     last_no_vote_cert: NoVoteCert,
+
+    last_proposal_time: Instant,
+    client_rate: u32,
 }
 
 impl Proposer {
@@ -77,6 +80,7 @@ impl Proposer {
         tx_core_timeout: Sender<Timeout>,
         rx_timeout_cert: Receiver<(TimeoutCert, Round)>,
         rx_no_vote_cert: Receiver<(NoVoteCert, Round)>,
+        client_rate: u32,
     ) {
         let genesis = Certificate::genesis(&committee);
         tokio::spawn(async move {
@@ -101,6 +105,8 @@ impl Proposer {
                 payload_size: 0,
                 last_timeout_cert: TimeoutCert::new(0),
                 last_no_vote_cert: NoVoteCert::new(0),
+                last_proposal_time: Instant::now(),
+                client_rate: client_rate,
             }
             .run()
             .await;
@@ -145,7 +151,13 @@ impl Proposer {
 
         let mut payload;
         if self.consensus_only {
-            payload = vec![vec![0u8; self.tx_size]; (self.header_size / self.tx_size)];
+            if self.round <= 1 {
+                payload = vec![vec![0u8; self.tx_size]; self.header_size / self.tx_size];
+            } else {
+                let duration = self.last_proposal_time.elapsed().as_millis();
+                let num_txns = duration * self.client_rate as u128 / 1000;
+                payload = vec![vec![0u8; self.tx_size]; num_txns as usize];
+            }
         } else {
             payload = self.txns.drain(..limit).collect();
         }
@@ -159,6 +171,8 @@ impl Proposer {
             parents.iter().map(|x| x.header_id).collect(),
         )
         .await;
+
+        self.last_proposal_time = Instant::now();
 
         #[cfg(feature = "benchmark")]
         {

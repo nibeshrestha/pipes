@@ -30,7 +30,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
         'bandwidth': 12500000,
         'meta_prop_time': 100,
         'block_prop_time': 200,
-        'client_rate': 20, # in ms
+        'client_rate': 2000, # num of transactions per second
         'tx_size': 512,
         'consensus_only': consensus_only,
         'timeout_delay': 20,  # ms
@@ -149,7 +149,7 @@ def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=Fa
         'prime_prop_time': 5000,
         'consensus_only': consensus_only,
         'timeout_delay': 10,  # ms
-        'client_rate': 10, # in ms
+        'client_rate': 2000, # num of transactions per second
         'header_size': 1_000,  # bytes
         'max_header_delay': 200,  # ms
         'gc_depth': 50,  # rounds

@@ -240,6 +240,7 @@ impl Primary {
             /* tx_core_timeout */ tx_timeout,
             rx_timeout_cert,
             rx_no_vote_cert,
+            parameters.client_rate,
         );
 
         // The `Helper` is dedicated to reply to certificates requests from other primaries.

@@ -82,6 +82,7 @@ pub struct Parameters {
     /// The delay after which the workers seal a batch of transactions, even if `max_batch_size`
     /// is not reached. Denominated in ms.
     pub max_batch_delay: u64,
+    pub client_rate: u32,
 }
 
 impl Default for Parameters {
@@ -96,6 +97,7 @@ impl Default for Parameters {
             batch_size: 500_000,
             tx_size: 512,
             max_batch_delay: 100,
+            client_rate: 100,
         }
     }
 }
@@ -115,6 +117,7 @@ impl Parameters {
         info!("Batch size set to {} B", self.batch_size);
         info!("Max batch delay set to {} ms", self.max_batch_delay);
         info!("Transaction size set to {} B", self.tx_size);
+        info!("Client rate set to {} tx/s", self.client_rate)
     }
 }
 
