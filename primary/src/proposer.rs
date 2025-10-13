@@ -7,7 +7,7 @@ use config::Committee;
 use crypto::{PublicKey, SignatureService};
 #[cfg(feature = "benchmark")]
 use log::info;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -156,6 +156,7 @@ impl Proposer {
             } else {
                 let duration = self.last_proposal_time.elapsed().as_millis();
                 let num_txns = duration * self.client_rate as u128 / 1000;
+                info!("Num of transactions {:?}", num_txns);
                 payload = vec![vec![0u8; self.tx_size]; num_txns as usize];
             }
         } else {
