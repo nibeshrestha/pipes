@@ -156,7 +156,7 @@ impl Proposer {
             } else {
                 let duration = self.last_proposal_time.elapsed().as_millis();
                 let num_txns = duration * self.client_rate as u128 / 1000;
-                info!("Num of transactions {:?} round {:?}", num_txns, self.round);
+                info!("Block {:?} round {:?} NumTxns {:?}", (self.committee.id() << 20) as u64 + self.round, self.round, num_txns) ;
                 payload = vec![vec![0u8; self.tx_size]; num_txns as usize];
             }
         } else {

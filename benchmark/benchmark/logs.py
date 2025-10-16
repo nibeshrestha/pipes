@@ -51,22 +51,17 @@ class LogParser:
         except (ValueError, IndexError, AttributeError) as e:
             raise ParseError(f'Failed to parse nodes\' logs: {e}')
         
-        proposals, commits, self.configs, primary_ips, leader_commits, non_leader_commits, self.received_samples, sizes = zip(*results)
+        proposals, commits, self.configs, primary_ips, leader_commits, non_leader_commits, self.received_samples, blk_rounds, sizes = zip(*results)
         self.proposals = self._merge_results([x.items() for x in proposals])
         self.commits = self._merge_results([x.items() for x in commits])
         self.leader_commits = self._merge_results([x.items() for x in leader_commits])
         self.non_leader_commits = self._merge_results([x.items() for x in non_leader_commits])
+        self.blk_rounds = self._merge_results([x.items() for x in blk_rounds])
 
         self.sizes = {
             k: v for x in sizes for k, v in x.items() if k in self.commits
         }
-        # # Parse the workers logs.
-        # try:
-        #     with Pool() as p:
-        #         results = p.map(self._parse_workers, workers)
-        # except (ValueError, IndexError, AttributeError) as e:
-        #     raise ParseError(f'Failed to parse workers\' logs: {e}')
-        # sizes, self.received_samples, workers_ips = zip(*results)
+        # self.proposals = self._filter_proposals(10)        
 
         # # Determine whether the primary and the workers are collocated.
         # self.collocate = set(primary_ips) == set(workers_ips)
@@ -78,6 +73,17 @@ class LogParser:
                 Print.warn(
                     f'Clients missed their target rate {self.misses:,} time(s)'
                 )
+
+    def _filter_proposals(self, round):
+        proposals = {}
+        for k, v in self.proposals.items():
+            try:
+                r = self.blk_rounds[k]
+                if r > round:
+                    proposals[k] = v
+            except:
+                pass
+        return proposals
 
     def _merge_results(self, input):
         # Keep the earliest timestamp.
@@ -125,6 +131,10 @@ class LogParser:
         tmp = [(d, self._to_posix(t)) for t, d in tmp]
         non_leader_commits = self._merge_results([tmp])
 
+        tmp = findall(r'Block ([^ ]+) round (\d+) NumTxns .*\n', log)
+        tmp = [(d, int(s)) for d, s in tmp]
+        blk_rounds = self._merge_results([tmp])
+
         if self.consensus_only:
             samples = {}
             tmp = findall(r'Header ([^ ]+) contains (\d+) B', log)
@@ -168,7 +178,7 @@ class LogParser:
 
         ip = search(r'booted on (\d+.\d+.\d+.\d+)', log).group(1)
 
-        return proposals, commits, configs, ip, leader_commits, non_leader_commits, samples, sizes
+        return proposals, commits, configs, ip, leader_commits, non_leader_commits, samples, blk_rounds, sizes
 
     # def _parse_workers(self, log):
     #     if search(r'(?:panic|Error)', log) is not None:
