@@ -1,5 +1,5 @@
 [package]
-name = "single_sender_beb"
+name = "multi_sender_beb"
 version = "0.1.0"
 authors = ["Nibesh Shrestha <nibeshrestha2@gmail.com>"]
 edition = "2018"
