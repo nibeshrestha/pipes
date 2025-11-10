@@ -1,13 +1,13 @@
 #!/bin/bash
 
 RUNS=1
-BLKPROPTIMES=(520 530 540 550 560 570 580 590)
+BLKPROPTIMES=(400 500 600)
 
 for BPT in ${BLKPROPTIMES[@]}
 do
     for i in $(seq 1 1 "$RUNS")
     do
-        if fab remote --bpt $BPT \
+        if fab remote --client-rate $BPT \
             | tee /dev/tty \
             | grep -i "error\|exception\|traceback"
         then

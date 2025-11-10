@@ -23,13 +23,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
 
     node_params = {
         'nodes': bench_params['nodes'],
-        'f_num': 3,
-        'meta_indep_size': 12500,
-        'meta_dep_size': 25000,
-        'alpha': 0.95,
         'bandwidth': 12500000,
-        'meta_prop_time': 100,
-        'block_prop_time': 200,
         'client_rate': 2000, # num of transactions per second
         'tx_size': 512,
         'consensus_only': consensus_only,
@@ -52,7 +46,7 @@ def local(ctx, debug=False, consensus_only=True, aggregate=False):
 
 
 @task
-def create(ctx, nodes=10):
+def create(ctx, nodes=40):
     ''' Create a testbed'''
     try:
         InstanceManager.make().create_instances(nodes)
@@ -121,11 +115,11 @@ def reset_filter(ctx):
         Print.error(e)
 
 @task
-def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=False):
+def remote(ctx, client_rate=450, debug=False, consensus_only=True, aggregate=False):
     ''' Run benchmarks on GCP '''
     bench_params = {
         'faults': 0,
-        'nodes': 10,
+        'nodes': 40,
         'workers': 1,
         'collocate': True,
         'rate': [150_000],
@@ -136,20 +130,12 @@ def remote(ctx, mpt=85, bpt=2440, debug=False, consensus_only=True, aggregate=Fa
 
     node_params = {
         'nodes': bench_params['nodes'],
-        'meta_indep_size': 12500,
-        'meta_dep_size': 25000,
-        'alpha': 0.95,
         'bandwidth': 12500000,  #12500000,
-        'meta_prop_time': mpt,
-        'block_prop_time': bpt, 
         'prime_prop_time': 3000,
         'tx_size': 512,
-        'meta_prop_time': mpt,
-        'block_prop_time': bpt, 
-        'prime_prop_time': 5000,
         'consensus_only': consensus_only,
         'timeout_delay': 1000,  # ms
-        'client_rate': 1_000, # num of transactions per second
+        'client_rate': client_rate, # num of transactions per second
         'header_size': 1_000,  # bytes
         'max_header_delay': 3000,  # ms
         'gc_depth': 50,  # rounds
